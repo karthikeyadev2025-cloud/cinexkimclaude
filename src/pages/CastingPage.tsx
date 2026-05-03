@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useRoleStore } from '../stores/roleStore'
 import { useCastingStore } from '../stores/castingStore'
+import { trpc } from '../providers/trpc'
 
 /* ─── Mock Casting Calls ─── */
 const CASTING_CALLS = [
@@ -91,9 +92,46 @@ export default function CastingPage() {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [agencyName, setAgencyName] = useState('')
+  const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
+  const showToast = (message: string) => {
+    setToast({ message, visible: true })
+    setTimeout(() => setToast({ message: '', visible: false }), 3000)
+  }
 
   const roleStore = useRoleStore()
   const castingStore = useCastingStore()
+
+  /* ─── tRPC: Fetch casting calls from backend ─── */
+  const { data: serverCalls, isLoading: callsLoading } = trpc.casting.callList.useQuery()
+  const callCreateMutation = trpc.casting.callCreate.useMutation({
+    onSuccess: () => showToast('Casting call created!'),
+    onError: (err) => showToast(`Error: ${err.message}`),
+  })
+
+  const submissionMutation = trpc.casting.submissionCreate.useMutation({
+    onSuccess: () => showToast('Application submitted!'),
+    onError: (err) => showToast(`Error: ${err.message}`),
+  })
+
+  /* ─── Merged data: server data when available, fallback to mock ─── */
+  const castingCalls = serverCalls && serverCalls.length > 0
+    ? serverCalls.map((call: any) => ({
+        id: call.id,
+        title: call.title || 'Untitled Role',
+        project: call.project?.title || 'Untitled Project',
+        director: call.creator?.name || 'Unknown Director',
+        location: call.location || 'India',
+        deadline: call.auditionDeadline
+          ? new Date(call.auditionDeadline).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })
+          : 'Open',
+        pay: call.remuneration || 'Negotiable',
+        type: call.roleName || 'Role',
+        age: call.ageMin && call.ageMax ? `${call.ageMin}-${call.ageMax}` : 'Any',
+        gender: call.gender || 'Any',
+        applicants: call.submissions?.length || 0,
+        desc: call.roleDescription || call.description || 'No description available.',
+      }))
+    : CASTING_CALLS
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -242,8 +280,14 @@ export default function CastingPage() {
               View All <ChevronRight className="w-3 h-3" />
             </button>
           </div>
+          {callsLoading && (
+            <div className="text-center py-8">
+              <div className="w-6 h-6 border-2 border-[#D4A853] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-xs text-[#888]">Loading casting calls...</p>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {CASTING_CALLS.map((call) => (
+            {castingCalls.map((call) => (
               <div key={call.id} className="bg-[#0D0D0D] border border-[#242424] rounded-xl p-4 hover:border-[#D4A853]/20 transition-all group">
                 <div className="flex items-start justify-between mb-2.5">
                   <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${call.type === 'Lead' ? 'bg-[#D4A853]/10 text-[#D4A853]' : call.type === 'Character' ? 'bg-[#9B59B6]/10 text-[#9B59B6]' : 'bg-[#2D9CDB]/10 text-[#2D9CDB]'}`}>{call.type}</span>
@@ -468,6 +512,13 @@ export default function CastingPage() {
         </div>
       )}
 
+      {/* ─── TOAST NOTIFICATION ─── */}
+      {toast.visible && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] px-4 py-2 rounded-lg bg-[#0D0D0D] border border-[#D4A853]/30 text-[#D4A853] text-xs font-medium shadow-lg">
+          {toast.message}
+        </div>
+      )}
+
       {/* ─── CASTING CALL DETAIL MODAL ─── */}
       {selectedCall && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4" onClick={() => setSelectedCall(null)}>
@@ -487,7 +538,18 @@ export default function CastingPage() {
                 ))}
               </div>
               <div className="flex gap-2 pt-2">
-                <button onClick={() => { setSelectedCall(null); setLoginMode('signin'); setShowLogin(true) }} className="flex-1 py-2 rounded-lg bg-[#D4A853] text-[#060606] text-sm font-semibold hover:bg-[#E8BF6A]">Apply Now</button>
+                <button onClick={() => {
+                  if (!roleStore.token) {
+                    setSelectedCall(null)
+                    setLoginMode('signin')
+                    setShowLogin(true)
+                    return
+                  }
+                  if (selectedCall) {
+                    submissionMutation.mutate({ callId: Number(selectedCall.id), talentId: Number(roleStore.user?.id) || 0 })
+                    setSelectedCall(null)
+                  }
+                }} className="flex-1 py-2 rounded-lg bg-[#D4A853] text-[#060606] text-sm font-semibold hover:bg-[#E8BF6A]">Apply Now</button>
                 <button onClick={() => setSelectedCall(null)} className="flex-1 py-2 rounded-lg border border-[#242424] text-[#888] text-sm hover:text-white">Close</button>
               </div>
             </div>

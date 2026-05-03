@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useCastingStore } from '../stores/castingStore'
 import { useRoleStore } from '../stores/roleStore'
+import { trpc } from '../providers/trpc'
 
 /* ─── Casting Director Dashboard ───
    Directors are ONLY a bridge between actors and Cinex.
@@ -32,6 +33,18 @@ export default function CastingDirectorDashboard() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
+  /* ─── tRPC: Casting Backend ─── */
+  const { data: serverDirectors } = trpc.casting.directorList.useQuery()
+  const { data: serverTalent } = trpc.casting.talentList.useQuery()
+  const createDirectorMutation = trpc.casting.directorCreate.useMutation({
+    onSuccess: () => showToast('Director profile synced to server'),
+    onError: (err) => showToast(`Server sync failed: ${err.message}`),
+  })
+  const createTalentMutation = trpc.casting.talentCreate.useMutation({
+    onSuccess: () => showToast('Talent profile synced to server'),
+    onError: (err) => showToast(`Server sync failed: ${err.message}`),
+  })
+
   /* Setup screen for new directors */
   if (!myDirector || showSetup) {
     return (
@@ -53,6 +66,11 @@ export default function CastingDirectorDashboard() {
           <button onClick={() => {
             if (!setupAgency) return
             store.addDirector({ name: user?.name || 'Director', email: user?.email || '', agencyName: setupAgency, location: setupLocation, status: 'pending', createdBy: 'self', verified: false })
+            // Also sync to backend
+            createDirectorMutation.mutate({
+              agencyName: setupAgency,
+              specialization: ['Film Casting'],
+            })
             setShowSetup(false)
             showToast('Agency profile created! Awaiting Cinex approval.')
           }} className="mt-5 w-full py-2.5 rounded-lg bg-[#D4A853] text-[#060606] text-sm font-semibold hover:bg-[#E8BF6A] transition-colors">Create Agency Profile</button>
@@ -223,6 +241,10 @@ function SubmitActorModal({ directorId, directorName, onClose, onSave }: {
   directorId: string; directorName: string; onClose: () => void; onSave: () => void
 }) {
   const store = useCastingStore()
+  const createTalentMutation = trpc.casting.talentCreate.useMutation({
+    onSuccess: () => console.log('Talent synced to server'),
+    onError: (err) => console.error('Server sync failed:', err),
+  })
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -272,6 +294,15 @@ function SubmitActorModal({ directorId, directorName, onClose, onSave }: {
       agencyId: directorId,
       verified: false,
       status: 'available',
+    })
+    // Sync to backend
+    createTalentMutation.mutate({
+      stageName: name,
+      realName: name,
+      gender: 'other',
+      languages: languages.split(',').map((l) => l.trim()).filter(Boolean),
+      skills: skills.split(',').map((s) => s.trim()).filter(Boolean),
+      experience,
     })
     onSave()
   }
@@ -357,4 +388,5 @@ function SubmitActorModal({ directorId, directorName, onClose, onSave }: {
 }
 
 /* Need Upload icon in this file scope */
-function Upload(props: any) { return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg> }
+function Upload(props: any) { return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> }
+ 
