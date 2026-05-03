@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Film, Sparkles, Play, Download, Clock, Ratio, ArrowRight,
   Trash2, RefreshCw, CheckCircle2, Zap, X, Star, Copy, Check,
@@ -7,6 +7,7 @@ import {
 import { useProjectStore } from '../stores/projectStore'
 import { useFeatureModelStore } from '../stores/featureModelStore'
 import { useApiConfigStore } from '../stores/apiConfigStore'
+import { trpc } from '../providers/trpc'
 
 interface GeneratedVideo {
   id: string
@@ -82,6 +83,38 @@ export default function PreVisualization() {
     prompt: `Cinematic ${scene.intExt === 'EXT.' ? 'exterior' : 'interior'} shot: ${scene.description}. ${scene.time === 'NIGHT' ? 'Night lighting, dramatic shadows.' : 'Day lighting, natural atmosphere.'} ${scene.characters.length > 0 ? `Featuring ${scene.characters.join(', ')}.` : ''}`,
   }))
 
+  const videoMutation = trpc.ai.videoGenerate.useMutation()
+  const [pendingVideoId, setPendingVideoId] = useState<string | null>(null)
+
+  const { data: videoStatus } = trpc.ai.status.useQuery(
+    { id: pendingVideoId! },
+    { enabled: !!pendingVideoId, refetchInterval: 3000 }
+  )
+
+  // Handle status updates from polling
+  useEffect(() => {
+    if (!pendingVideoId || !videoStatus) return
+    if (videoStatus.status === 'succeeded' || videoStatus.status === 'completed') {
+      const outputUrl = Array.isArray(videoStatus.output) ? videoStatus.output[0] : videoStatus.output
+      setVideos((v) => v.map((vid) => vid.id === pendingVideoId ? {
+        ...vid,
+        status: 'completed' as const,
+        url: typeof outputUrl === 'string' ? outputUrl : undefined
+      } : vid))
+      setPendingVideoId(null)
+      setGenerating(false)
+      setProgress(100)
+    } else if (videoStatus.status === 'failed' || videoStatus.status === 'canceled') {
+      setVideos((v) => v.map((vid) => vid.id === pendingVideoId ? { ...vid, status: 'failed' as const } : vid))
+      setPendingVideoId(null)
+      setGenerating(false)
+      setProgress(0)
+    } else {
+      // Still processing - update progress
+      setProgress((p) => Math.min(p + 15, 90))
+    }
+  }, [videoStatus, pendingVideoId])
+
   const handleGenerate = async () => {
     if (!prompt.trim() || generating) return
     setGenerating(true)
@@ -101,17 +134,23 @@ export default function PreVisualization() {
     }
     setVideos((v) => [newVideo, ...v])
 
-    const interval = setInterval(() => {
-      setProgress((p) => (p >= 90 ? p : p + Math.random() * 12))
-    }, 800)
-
-    await new Promise((r) => setTimeout(r, 6000))
-    clearInterval(interval)
-    setProgress(100)
-
-    setVideos((v) => v.map((vid) => vid.id === newVideo.id ? { ...vid, status: 'completed' as const, url: '/previs-generated.mp4' } : vid))
-    setGenerating(false)
-    setProgress(0)
+    try {
+      const result = await videoMutation.mutateAsync({ prompt: prompt.trim(), numFrames: duration * 6, fps: 24 })
+      if (result.id && result.id !== 'pending') {
+        setPendingVideoId(result.id)
+        // Also update the video entry with the real ID if we got one
+        setVideos((v) => v.map((vid) => vid.id === newVideo.id ? { ...vid, id: result.id } : vid))
+      } else {
+        // Backend returned pending — mark as failed for now (needs proper video model)
+        setVideos((v) => v.map((vid) => vid.id === newVideo.id ? { ...vid, status: 'failed' as const } : vid))
+        setGenerating(false)
+      }
+    } catch (err: any) {
+      console.error('Video generation failed:', err)
+      setVideos((v) => v.map((vid) => vid.id === newVideo.id ? { ...vid, status: 'failed' as const } : vid))
+      setGenerating(false)
+      setProgress(0)
+    }
     setPrompt('')
   }
 

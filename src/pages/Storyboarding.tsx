@@ -6,6 +6,7 @@ import {
   Clock, Film, RefreshCw
 } from 'lucide-react'
 import { useProjectStore } from '../stores/projectStore'
+import { trpc } from '../providers/trpc'
 import { jsPDF } from 'jspdf'
 
 interface Annotation {
@@ -126,19 +127,29 @@ export default function Storyboarding() {
     setAiPrompt('')
   }, [])
 
-  const generateImage = useCallback(() => {
-    setGenerating(true)
-    setTimeout(() => {
-      const urls = [
-        'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=640&h=360&fit=crop',
-        'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=640&h=360&fit=crop',
-        'https://images.unsplash.com/photo-1518676596012-424a84089f67?w=640&h=360&fit=crop',
-        'https://images.unsplash.com/photo-1478720568477-152d9b164e63?w=640&h=360&fit=crop',
-      ]
-      setGeneratedImage(urls[Math.floor(Math.random() * urls.length)])
+  const imageMutation = trpc.ai.imageGenerate.useMutation({
+    onSuccess: (data) => {
+      if (data.output && Array.isArray(data.output) && data.output[0]) {
+        setGeneratedImage(data.output[0])
+      } else if (data.output && typeof data.output === 'string') {
+        setGeneratedImage(data.output)
+      } else {
+        setGeneratedImage(null)
+      }
       setGenerating(false)
-    }, 1500)
-  }, [])
+    },
+    onError: (err) => {
+      console.error('Image generation failed:', err)
+      setGenerating(false)
+    },
+  })
+
+  const generateImage = useCallback(() => {
+    if (!aiPrompt.trim()) return
+    setGenerating(true)
+    setGeneratedImage(null)
+    imageMutation.mutate({ prompt: aiPrompt, width: 1024, height: 576, numOutputs: 1 })
+  }, [aiPrompt, imageMutation])
 
   const applyGeneratedImage = useCallback(() => {
     if (!aiTargetFrame || !generatedImage) return
@@ -429,6 +440,12 @@ export default function Storyboarding() {
             </div>
             <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Describe the frame you want to generate..." className="w-full h-20 bg-[#131313] border border-[#242424] rounded-lg px-3 py-2 text-sm text-white placeholder-[#444444] outline-none focus:border-[#D4A853] resize-none mb-4" />
             <div className="bg-[#060606] border border-[#242424] rounded-lg p-4 mb-4 min-h-[200px] flex items-center justify-center">
+              {imageMutation.isError && !generating && (
+                <div className="text-center text-red-400">
+                  <p className="text-xs">{(imageMutation.error as any)?.message || 'Generation failed'}</p>
+                  <p className="text-[10px] text-[#6B6B6B] mt-1">Please try a different prompt</p>
+                </div>
+              )}
               {generating ? (
                 <div className="text-center text-[#A3A3A3]">
                   <div className="w-8 h-8 border-2 border-[#D4A853] border-t-transparent rounded-full animate-spin mx-auto mb-2" />

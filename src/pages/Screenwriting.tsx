@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useProjectStore } from '../stores/projectStore'
 import { jsPDF } from 'jspdf'
+import { trpc } from '../providers/trpc'
 
 /* ─── Fountain Parser Helpers ─── */
 const detectLineType = (line: string): 'heading' | 'action' | 'character' | 'dialogue' | 'parenthetical' | 'transition' | 'note' | 'pagebreak' | 'unknown' => {
@@ -147,20 +148,47 @@ export default function Screenwriting() {
     ta.focus(); ta.setSelectionRange(charPos, charPos)
   }
 
+  const aiMutation = trpc.ai.run.useMutation({
+    onSuccess: (data) => {
+      if (data.output) {
+        const output = Array.isArray(data.output) ? data.output.join(' ') : String(data.output)
+        // Parse into individual suggestions (split by newlines or numbers)
+        const lines = output
+          .split(/\n+/)
+          .map((l: string) => l.replace(/^\d+\.\s*/, '').trim())
+          .filter((l: string) => l.length > 10)
+        setAiSuggestions(lines.length > 0 ? lines.slice(0, 6) : [output])
+      } else {
+        setAiSuggestions(['No suggestions generated. Try a different prompt.'])
+      }
+      setAiLoading(false)
+    },
+    onError: (err: any) => {
+      console.error('AI suggestions failed:', err)
+      // Fallback suggestions
+      setAiSuggestions([
+        `Consider adding visual motifs to mirror ${characters[0]?.name || 'the protagonist'}'s emotional state.`,
+        'The confrontation could benefit from a ticking clock element to build tension.',
+        `Add a silent beat after the reveal to let tension breathe before the next action.`,
+        'Consider foreshadowing key plot points earlier in the narrative.',
+        `Review scene transitions — smooth cuts maintain pacing and audience engagement.`,
+      ])
+      setAiLoading(false)
+    },
+  })
+
   const generateAiSuggestions = useCallback(() => {
     setAiLoading(true)
-    setTimeout(() => {
-      const suggestions = [
-        `Consider adding visual rain motifs to mirror ${characters[0]?.name || 'the protagonist'}'s emotional state.`,
-        'The confrontation could benefit from a ticking clock element.',
-        `Add a silent beat after the reveal to let tension breathe.`,
-        'The film reel reveal works well — consider foreshadowing it earlier.',
-        `Scene 2's apartment setting feels cramped. Open a window for visual depth?`,
-      ]
-      setAiSuggestions(suggestions)
-      setAiLoading(false)
-    }, 1500)
-  }, [characters])
+    setAiSuggestions([])
+    const scriptPreview = content.slice(0, 2000)
+    const prompt = `You are an expert screenplay consultant. Analyze this screenplay excerpt and provide 5 concise, actionable writing suggestions. Format each suggestion as a separate paragraph.
+
+SCRIPT:
+${scriptPreview}
+
+SUGGESTIONS:`
+    aiMutation.mutate({ model: 'meta/meta-llama-3-8b-instruct', prompt })
+  }, [content, characters, aiMutation])
 
   return (
     <div className="min-h-[100dvh] bg-[#060606] text-[#F0F0F0]">

@@ -36,22 +36,31 @@ export const aiProxyRouter = createRouter({
   run: authedQuery
     .input(
       z.object({
-        version: z.string().min(1),
-        input: z.record(z.string(), z.any()),
+        model: z.string().optional(),
+        prompt: z.string().min(1),
+        version: z.string().optional(),
+        input: z.record(z.string(), z.any()).optional(),
       }),
     )
     .mutation(async ({ input }) => {
+      const modelVersions: Record<string, string> = {
+        "meta/meta-llama-3-8b-instruct": "d7855a4f49ee0f12c393f9bf7fbdf5711e84d072c6a670a4f8c37b7a2bf37a64",
+        "meta/meta-llama-3-70b-instruct": "087359cd1e6716d960840ab1a8f6bda297e23a80cf5322291ea3950647abda09",
+        "mistralai/mistral-7b-instruct-v0.2": "5d1d11f028f73dac59878d96691baba17c7cf1f3f7a598f7b9e2771b659c1ac6",
+      };
+      const version = input.version || modelVersions[input.model || ""] || input.model || "";
+      if (!version) throw new Error("No model version specified");
       const prediction = (await replicateFetch("/predictions", {
-        version: input.version,
-        input: input.input,
+        version,
+        input: input.input || { prompt: input.prompt, max_tokens: 512 },
       })) as { id: string; status: string; output?: unknown; urls?: { get: string } };
       return prediction;
     }),
 
   status: authedQuery
-    .input(z.object({ predictionId: z.string().min(1) }))
+    .input(z.object({ id: z.string().min(1) }))
     .query(async ({ input }) => {
-      const prediction = (await replicateFetch(`/predictions/${input.predictionId}`)) as {
+      const prediction = (await replicateFetch(`/predictions/${input.id}`)) as {
         id: string;
         status: string;
         output?: unknown;

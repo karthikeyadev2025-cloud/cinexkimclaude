@@ -2,21 +2,21 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Film, Clapperboard, Eye, EyeOff, Mail, Lock, ArrowRight,
-  Sparkles, Zap, Chrome, ArrowLeft, Fingerprint
+  Sparkles, Zap, Chrome, ArrowLeft
 } from 'lucide-react'
 import { useRoleStore } from '../stores/roleStore'
 import { trpcClient } from '../providers/trpc'
 
-export default function Login({ defaultMode }: { defaultMode?: "signin" | "register" | "magic" } = {}) {
+export default function Login({ defaultMode }: { defaultMode?: "signin" | "register" } = {}) {
   const navigate = useNavigate()
   const roleStore = useRoleStore()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [magicSent, setMagicSent] = useState(false)
+
   const [error, setError] = useState('')
-  const [mode, setMode] = useState<'signin' | 'register' | 'magic'>(defaultMode || 'signin')
+  const [mode, setMode] = useState<'signin' | 'register'>(defaultMode === 'magic' ? 'signin' : (defaultMode || 'signin'))
   const [name, setName] = useState('')
   const [registerRole, setRegisterRole] = useState<'user' | 'casting' | 'talent'>('user')
   const [particles, setParticles] = useState<{x: number; y: number; size: number; delay: number}[]>([])
@@ -56,11 +56,6 @@ export default function Login({ defaultMode }: { defaultMode?: "signin" | "regis
     } else {
       setError(result.error || 'Registration failed. Please try again.')
     }
-  }
-  const handleMagicLink = (e: React.FormEvent) => {
-    e.preventDefault()
-    setMagicSent(true)
-    setTimeout(() => setMagicSent(false), 4000)
   }
 
   const handleGoogleSignIn = async () => {
@@ -185,12 +180,7 @@ export default function Login({ defaultMode }: { defaultMode?: "signin" | "regis
             >
               New Account
             </button>
-            <button
-              onClick={() => setMode('magic')}
-              className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all ${mode === 'magic' ? 'bg-[#242424] text-white shadow-sm' : 'text-[#555] hover:text-[#888]'}`}
-            >
-              Magic Link
-            </button>
+
           </div>
 
           {/* ─── SIGN IN ─── */}
@@ -371,47 +361,6 @@ export default function Login({ defaultMode }: { defaultMode?: "signin" | "regis
             </>
           )}
 
-          {/* ─── MAGIC LINK ─── */}
-          {mode === 'magic' && (
-            <>
-              <p className="text-sm text-[#888] mb-5">Passwordless login. We send a magic link to your email.</p>
-
-              <form onSubmit={handleMagicLink} className="space-y-4">
-                <div className="relative">
-                  <Fingerprint className="w-4 h-4 text-[#555] absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-[#131313] border border-[#242424] rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-[#444] focus:outline-none focus:border-[#D4A853] transition-all"
-                    required
-                  />
-                </div>
-
-                {magicSent ? (
-                  <div className="p-3 rounded-xl bg-[#27AE60]/10 border border-[#27AE60]/20 text-center">
-                    <p className="text-sm text-[#27AE60] font-medium">Magic link sent!</p>
-                    <p className="text-[11px] text-[#888] mt-0.5">Check your inbox for the login link.</p>
-                  </div>
-                ) : (
-                  <button
-                    type="submit"
-                    className="w-full py-3 rounded-xl bg-[#D4A853] text-[#060606] text-sm font-semibold hover:bg-[#E8BF6A] transition-all flex items-center justify-center gap-2"
-                  >
-                    <Sparkles className="w-4 h-4" /> Send Magic Link
-                  </button>
-                )}
-              </form>
-
-              <p className="text-center text-[11px] text-[#555] mt-4">
-                Prefer password?{' '}
-                <button onClick={() => setMode('signin')} className="text-[#D4A853] hover:underline font-medium">
-                  Sign in with password
-                </button>
-              </p>
-            </>
-          )}
 
           {/* Footer */}
           <div className="mt-8 pt-6 border-t border-[#1a1a1a] text-center">
