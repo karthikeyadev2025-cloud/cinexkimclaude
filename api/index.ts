@@ -12,7 +12,7 @@ app.use("*", async (c, next) => {
   const origin = c.req.header("origin");
   const isAllowedOrigin =
     !origin ||
-    origin === env.appUrl ||
+    origin === env.siteUrl ||
     origin.startsWith("http://localhost:") ||
     origin.endsWith(".kimi.page");
 

@@ -8,7 +8,7 @@ import {
   castingCalls,
   submissions,
   media,
-} from "./schema";
+} from "./schema.js";
 
 export const usersRelations = relations(users, ({ one, many }) => ({
   profile: one(profiles, { fields: [users.id], references: [profiles.userId] }),
