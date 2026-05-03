@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { trpc } from '../providers/trpc'
 import {
   Folder, FileText, Image, Calendar, DollarSign, Users, ArrowRight, Plus,
   MoreHorizontal, TrendingUp, TrendingDown, Activity, Wand2, Clapperboard,
@@ -159,12 +160,38 @@ export default function Dashboard() {
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectType, setNewProjectType] = useState('Feature Film')
 
+  /* ─── tRPC: Project CRUD ─── */
+  const { data: serverProjects } = trpc.project.list.useQuery()
+  const createProjectMutation = trpc.project.create.useMutation({
+    onSuccess: () => {
+      showToast(`Project "${newProjectName}" created`)
+      setNewProjectName('')
+      setShowNewProject(false)
+    },
+    onError: (err) => {
+      showToast(`Error: ${err.message}`)
+    },
+  })
+  const deleteProjectMutation = trpc.project.delete.useMutation({
+    onSuccess: () => {
+      showToast('Project deleted')
+    },
+  })
+
   const unreadCount = notifications.filter((n) => !n.read).length
 
   useEffect(() => {
     const h = new Date().getHours()
     setGreeting(h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening')
   }, [])
+
+  useEffect(() => {
+    if (serverProjects && serverProjects.length > 0) {
+      // Server projects loaded — they will be the source of truth
+      // For now we keep the rich local mock data and just log
+      console.log('[Dashboard] Server projects:', serverProjects)
+    }
+  }, [serverProjects])
 
   const showToast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(null), 2500) }
 
@@ -190,9 +217,14 @@ export default function Dashboard() {
 
   const createProject = () => {
     if (!newProjectName.trim()) return
-    showToast(`Project "${newProjectName}" created`)
-    setNewProjectName('')
-    setShowNewProject(false)
+    const slug = newProjectName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    createProjectMutation.mutate({
+      title: newProjectName.trim(),
+      slug: slug || `project-${Date.now()}`,
+      description: `${newProjectType} project`,
+      genre: newProjectType,
+      language: 'English',
+    })
   }
 
   return (
@@ -348,7 +380,7 @@ export default function Dashboard() {
                             <button onClick={() => { setProjectMenuOpen(null); navigate('/storyboarding') }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#A3A3A3] hover:text-white hover:bg-[#1a1a1a] text-left"><Image className="w-3.5 h-3.5" /> Storyboard</button>
                             <button onClick={() => { setProjectMenuOpen(null); showToast(`${p.title} exported`) }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#A3A3A3] hover:text-white hover:bg-[#1a1a1a] text-left"><Download className="w-3.5 h-3.5" /> Export</button>
                             <div className="border-t border-[#242424]" />
-                            <button onClick={() => { setProjectMenuOpen(null); showToast(`${p.title} archived`) }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#E74C3C] hover:bg-[#E74C3C]/10 text-left"><Trash2 className="w-3.5 h-3.5" /> Archive</button>
+                            <button onClick={() => { setProjectMenuOpen(null); deleteProjectMutation.mutate({ id: Number(p.id) || 0 }); showToast(`${p.title} deleted`) }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#E74C3C] hover:bg-[#E74C3C]/10 text-left"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
                           </div>
                         </>
                       )}

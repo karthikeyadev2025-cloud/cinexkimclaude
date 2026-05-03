@@ -14,42 +14,7 @@ import {
   List,
   Save,
 } from 'lucide-react'
-
-/* ─── Types ─── */
-interface Scene {
-  id: string
-  number: number
-  heading: string
-  estTime: string
-  cast: string[]
-  location: string
-  dayOrNight: 'DAY' | 'NIGHT' | 'DUSK' | 'DAWN'
-}
-
-interface DaySchedule {
-  id: string
-  date: string
-  label: string
-  scenes: Scene[]
-}
-
-/* ─── Mock Data ─── */
-const initialScenes: Scene[] = [
-  { id: 'sc1', number: 1, heading: 'EXT. WAREHOUSE DISTRICT - NIGHT', estTime: '0:45', cast: ['Jack'], location: 'Warehouse Ext', dayOrNight: 'NIGHT' },
-  { id: 'sc2', number: 2, heading: 'INT. WAREHOUSE - CONTINUOUS', estTime: '1:30', cast: ['Jack', 'Sarah'], location: 'Warehouse Int', dayOrNight: 'NIGHT' },
-  { id: 'sc3', number: 3, heading: 'INT. WAREHOUSE OFFICE - NIGHT', estTime: '1:15', cast: ['Sarah'], location: 'Warehouse Office', dayOrNight: 'NIGHT' },
-  { id: 'sc4', number: 4, heading: 'EXT. ALLEY BEHIND WAREHOUSE - NIGHT', estTime: '0:30', cast: ['Jack'], location: 'Alley', dayOrNight: 'NIGHT' },
-  { id: 'sc5', number: 5, heading: 'INT. SAFEHOUSE - DAY', estTime: '2:00', cast: ['Sarah', 'Morgan'], location: 'Safehouse', dayOrNight: 'DAY' },
-  { id: 'sc6', number: 6, heading: 'EXT. SAFEHOUSE ROOF - DUSK', estTime: '0:45', cast: ['Jack', 'Sarah'], location: 'Safehouse Roof', dayOrNight: 'DUSK' },
-]
-
-const initialSchedule: DaySchedule[] = [
-  { id: 'd1', date: '2025-06-02', label: 'Day 1 — Mon', scenes: [initialScenes[0], initialScenes[1]] },
-  { id: 'd2', date: '2025-06-03', label: 'Day 2 — Tue', scenes: [initialScenes[2]] },
-  { id: 'd3', date: '2025-06-04', label: 'Day 3 — Wed', scenes: [] },
-  { id: 'd4', date: '2025-06-05', label: 'Day 4 — Thu', scenes: [initialScenes[3]] },
-  { id: 'd5', date: '2025-06-06', label: 'Day 5 — Fri', scenes: [] },
-]
+import { useScheduleStore, type Scene } from '../stores/scheduleStore'
 
 /* ─── Helpers ─── */
 const timeToMin = (t: string) => {
@@ -78,12 +43,21 @@ const dayOrNightBg = (d: Scene['dayOrNight']) => {
 
 /* ─── Component ─── */
 export default function Scheduling() {
-  const [schedule, setSchedule] = useState<DaySchedule[]>(initialSchedule)
-  const [unassigned, setUnassigned] = useState<Scene[]>([initialScenes[4], initialScenes[5]])
+  const {
+    schedule,
+    unassigned,
+    nextSceneNum,
+    setSchedule,
+    setUnassigned,
+    setNextSceneNum,
+    removeScene,
+    moveScene,
+    autoSchedule,
+  } = useScheduleStore()
+
   const [view, setView] = useState<'stripboard' | 'calendar'>('stripboard')
   const [draggingScene, setDraggingScene] = useState<Scene | null>(null)
   const [dragSource, setDragSource] = useState<string | null>(null)
-  const [nextSceneNum, setNextSceneNum] = useState(7)
   const [saving, setSaving] = useState(false)
 
   /* ─── Drag & Drop ─── */
@@ -101,36 +75,16 @@ export default function Scheduling() {
       e.preventDefault()
       if (!draggingScene || !dragSource) return
 
-      // Remove from source
-      if (dragSource === 'unassigned') {
-        setUnassigned((prev) => prev.filter((s) => s.id !== draggingScene.id))
-      } else {
-        setSchedule((prev) =>
-          prev.map((d) =>
-            d.id === dragSource ? { ...d, scenes: d.scenes.filter((s) => s.id !== draggingScene.id) } : d
-          )
-        )
-      }
-
-      // Add to target
-      if (targetDayId === 'unassigned') {
-        setUnassigned((prev) => [...prev, draggingScene])
-      } else {
-        setSchedule((prev) =>
-          prev.map((d) =>
-            d.id === targetDayId ? { ...d, scenes: [...d.scenes, draggingScene] } : d
-          )
-        )
-      }
+      moveScene(draggingScene.id, dragSource, targetDayId)
 
       setDraggingScene(null)
       setDragSource(null)
     },
-    [draggingScene, dragSource]
+    [draggingScene, dragSource, moveScene]
   )
 
   /* ─── Actions ─── */
-  const addScene = useCallback(() => {
+  const handleAddScene = useCallback(() => {
     const newScene: Scene = {
       id: `sc${Date.now()}`,
       number: nextSceneNum,
@@ -140,36 +94,17 @@ export default function Scheduling() {
       location: 'TBD',
       dayOrNight: 'DAY',
     }
-    setUnassigned((prev) => [...prev, newScene])
-    setNextSceneNum((n) => n + 1)
-  }, [nextSceneNum])
+    setUnassigned([...unassigned, newScene])
+    setNextSceneNum(nextSceneNum + 1)
+  }, [nextSceneNum, unassigned, setUnassigned, setNextSceneNum])
 
-  const removeScene = useCallback((sceneId: string, source: string) => {
-    if (source === 'unassigned') {
-      setUnassigned((prev) => prev.filter((s) => s.id !== sceneId))
-    } else {
-      setSchedule((prev) =>
-        prev.map((d) =>
-          d.id === source ? { ...d, scenes: d.scenes.filter((s) => s.id !== sceneId) } : d
-        )
-      )
-    }
-  }, [])
+  const handleRemoveScene = useCallback((sceneId: string, source: string) => {
+    removeScene(sceneId, source)
+  }, [removeScene])
 
-  const autoSchedule = useCallback(() => {
-    const allScenes = [...unassigned]
-    if (allScenes.length === 0) return
-    setSchedule((prev) => {
-      let sceneIdx = 0
-      return prev.map((d) => {
-        const addCount = Math.min(allScenes.length - sceneIdx, 2)
-        const added = allScenes.slice(sceneIdx, sceneIdx + addCount)
-        sceneIdx += addCount
-        return { ...d, scenes: [...d.scenes, ...added] }
-      })
-    })
-    setUnassigned([])
-  }, [unassigned])
+  const handleAutoSchedule = useCallback(() => {
+    autoSchedule()
+  }, [autoSchedule])
 
   const saveSchedule = useCallback(() => {
     setSaving(true)
@@ -222,11 +157,11 @@ export default function Scheduling() {
                 Calendar
               </button>
             </div>
-            <button className="btn-secondary text-sm" onClick={autoSchedule}>
+            <button className="btn-secondary text-sm" onClick={handleAutoSchedule}>
               <Wand2 className="w-4 h-4" />
               Auto-Schedule
             </button>
-            <button className="btn-primary text-sm" onClick={addScene}>
+            <button className="btn-primary text-sm" onClick={handleAddScene}>
               <Plus className="w-4 h-4" />
               Add Scene
             </button>
@@ -266,7 +201,7 @@ export default function Scheduling() {
                     <span className="text-xs max-w-[160px] truncate">{scene.heading}</span>
                     <button
                       className="ml-1 p-0.5 rounded hover:bg-[#242424] text-[#E74C3C]"
-                      onClick={() => removeScene(scene.id, 'unassigned')}
+                      onClick={() => handleRemoveScene(scene.id, 'unassigned')}
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -333,7 +268,7 @@ export default function Scheduling() {
                           </div>
                           <button
                             className="p-1 rounded hover:bg-black/20 text-[#E74C3C]"
-                            onClick={() => removeScene(scene.id, day.id)}
+                            onClick={() => handleRemoveScene(scene.id, day.id)}
                           >
                             <Trash2 className="w-3 h-3" />
                           </button>

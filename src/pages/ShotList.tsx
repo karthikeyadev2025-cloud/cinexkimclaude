@@ -6,6 +6,7 @@ import {
   CheckCircle2, X, RefreshCw
 } from 'lucide-react'
 import { useProjectStore } from '../stores/projectStore'
+import { trpc } from '../providers/trpc'
 
 /* ─── Camera Diagrams ─── */
 interface CameraDiagram {
@@ -174,6 +175,25 @@ export default function ShotList() {
   const [aiTargetShot, setAiTargetShot] = useState<any>(null)
   const [generating, setGenerating] = useState(false)
   const [generatedImage, setGeneratedImage] = useState<string | null>(null)
+
+  const imageMutation = trpc.ai.imageGenerate.useMutation({
+    onSuccess: (data) => {
+      if (data.output && Array.isArray(data.output) && data.output[0]) {
+        setGeneratedImage(data.output[0])
+      } else if (data.output && typeof data.output === 'string') {
+        setGeneratedImage(data.output)
+      } else {
+        setGeneratedImage(null)
+      }
+      setGenerating(false)
+    },
+    onError: (err) => {
+      console.error('Shot image generation failed:', err)
+      setGeneratedImage(null)
+      setGenerating(false)
+    },
+  })
+
   const [selectedDiagram, setSelectedDiagram] = useState<CameraDiagram | null>(null)
   const [showAllDiagrams, setShowAllDiagrams] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -229,7 +249,12 @@ export default function ShotList() {
   }, [shots, project])
 
   const openAiModal = useCallback((shot: any) => { setAiTargetShot(shot); setAiModalOpen(true); setGeneratedImage(null) }, [])
-  const generateImage = useCallback(() => { setGenerating(true); setTimeout(() => { setGeneratedImage('https://images.unsplash.com/photo-1485846234645-a62644f84728?w=640&h=360&fit=crop'); setGenerating(false) }, 1500) }, [])
+  const generateImage = useCallback(() => {
+    const prompt = aiTargetShot?.description || 'Cinematic film shot, professional lighting'
+    setGenerating(true)
+    setGeneratedImage(null)
+    imageMutation.mutate({ prompt, width: 1024, height: 576, numOutputs: 1 })
+  }, [aiTargetShot, imageMutation])
   const handleCastPhotoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -497,6 +522,11 @@ export default function ShotList() {
             <h3 className="font-space-grotesk text-xl font-semibold mb-1 pr-8 text-white">AI Image Generation</h3>
             <p className="text-sm text-[#A3A3A3] mb-4">Shot {aiTargetShot?.number}: {aiTargetShot?.description}</p>
             <div className="bg-[#060606] border border-[#242424] rounded-lg p-4 mb-4 min-h-[200px] flex items-center justify-center">
+              {imageMutation.isError && (
+                <div className="text-center text-red-400 mb-2">
+                  <p className="text-xs">{(imageMutation.error as any)?.message || 'Generation failed. Check Replicate credits.'}</p>
+                </div>
+              )}
               {generating ? (
                 <div className="text-center text-[#A3A3A3]">
                   <div className="w-8 h-8 border-2 border-[#D4A853] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
@@ -515,10 +545,10 @@ export default function ShotList() {
               <button className="btn-primary" onClick={generateImage} disabled={generating}>{generating ? 'Generating...' : 'Generate Image'}</button>
               <button className="btn-secondary" onClick={() => fileRef.current?.click()}>Upload Cast Photo</button>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleCastPhotoUpload} />
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
   )
 }

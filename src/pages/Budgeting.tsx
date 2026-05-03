@@ -1,55 +1,33 @@
 import { useState } from 'react'
 import { Plus, Trash2, Download } from 'lucide-react'
-
-interface BudgetItem {
-  id: number
-  category: string
-  item: string
-  estimated: number
-  actual: number
-}
+import { useBudgetStore, type BudgetItem } from '../stores/budgetStore'
 
 const CATEGORIES = ['Pre-Production', 'Production', 'Post-Production', 'Marketing', 'Misc']
 
-const INITIAL_ITEMS: BudgetItem[] = [
-  { id: 1, category: 'Pre-Production', item: 'Script Development', estimated: 5000, actual: 4500 },
-  { id: 2, category: 'Pre-Production', item: 'Location Scouting', estimated: 2000, actual: 1800 },
-  { id: 3, category: 'Production', item: 'Camera Equipment Rental', estimated: 15000, actual: 14500 },
-  { id: 4, category: 'Production', item: 'Crew Salaries', estimated: 25000, actual: 25000 },
-  { id: 5, category: 'Production', item: 'Actor Fees', estimated: 20000, actual: 22000 },
-  { id: 6, category: 'Post-Production', item: 'Editing', estimated: 8000, actual: 6000 },
-  { id: 7, category: 'Post-Production', item: 'Sound Design', estimated: 5000, actual: 0 },
-  { id: 8, category: 'Marketing', item: 'Festival Submissions', estimated: 3000, actual: 0 },
-]
-
 export default function Budgeting() {
-  const [items, setItems] = useState<BudgetItem[]>(INITIAL_ITEMS)
-  const [nextId, setNextId] = useState(9)
+  const { items, addItem, removeItem, updateItem } = useBudgetStore()
   const [newCategory, setNewCategory] = useState(CATEGORIES[0])
   const [newItem, setNewItem] = useState('')
   const [newEstimated, setNewEstimated] = useState('')
 
-  const addItem = () => {
+  const handleAddItem = () => {
     if (!newItem.trim()) return
-    const item: BudgetItem = {
-      id: nextId,
+    addItem({
       category: newCategory,
       item: newItem.trim(),
       estimated: Number(newEstimated) || 0,
       actual: 0,
-    }
-    setItems([...items, item])
-    setNextId(nextId + 1)
+    })
     setNewItem('')
     setNewEstimated('')
   }
 
-  const updateActual = (id: number, value: number) => {
-    setItems(items.map((i) => (i.id === id ? { ...i, actual: value } : i)))
+  const handleUpdateActual = (id: number, value: number) => {
+    updateItem(id, { actual: value })
   }
 
-  const deleteItem = (id: number) => {
-    setItems(items.filter((i) => i.id !== id))
+  const handleDeleteItem = (id: number) => {
+    removeItem(id)
   }
 
   const totalEstimated = items.reduce((s, i) => s + i.estimated, 0)
@@ -133,7 +111,7 @@ export default function Budgeting() {
                           <input
                             type="number"
                             value={item.actual}
-                            onChange={(e) => updateActual(item.id, Number(e.target.value))}
+                            onChange={(e) => handleUpdateActual(item.id, Number(e.target.value))}
                             className="w-24 bg-[#0D0D0D] border border-[#242424] rounded px-2 py-1 text-right text-sm text-white outline-none focus:border-[#D4A853]"
                           />
                         </td>
@@ -141,7 +119,7 @@ export default function Budgeting() {
                           {item.actual - item.estimated > 0 ? '+' : ''}${(item.actual - item.estimated).toLocaleString()}
                         </td>
                         <td className="py-3 px-4">
-                          <button onClick={() => deleteItem(item.id)} className="p-1.5 rounded hover:bg-[#242424] text-[#6B6B6B] hover:text-[#E74C3C] transition-colors">
+                          <button onClick={() => handleDeleteItem(item.id)} className="p-1.5 rounded hover:bg-[#242424] text-[#6B6B6B] hover:text-[#E74C3C] transition-colors">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </td>
@@ -178,7 +156,7 @@ export default function Budgeting() {
                   className="bg-[#0D0D0D] border border-[#242424] rounded-lg px-3 py-2.5 text-sm text-white placeholder-[#6B6B6B] outline-none focus:border-[#D4A853]"
                 />
                 <button
-                  onClick={addItem}
+                  onClick={handleAddItem}
                   className="flex items-center justify-center gap-2 bg-[#D4A853] text-[#060606] rounded-lg font-inter text-sm font-medium hover:bg-[#c49a48] transition-colors"
                 >
                   <Plus className="w-4 h-4" /> Add
