@@ -3,9 +3,11 @@ import {
   PenTool, Download, Save, Type, AlignLeft, FileText, Printer, Copy, Check,
   Bold, Film, Users, Hash,
   BookOpen, Trash2, Sparkles, X, Zap, FileJson, FileCode,
-  RefreshCw, Plus
+  RefreshCw, Plus, Lock, AlertTriangle
 } from 'lucide-react'
 import { useProjectStore } from '../stores/projectStore'
+import { useSubscriptionStore } from '../stores/subscriptionStore'
+import FeatureLock from '../components/FeatureLock'
 import { jsPDF } from 'jspdf'
 import { trpc } from '../providers/trpc'
 
@@ -40,6 +42,10 @@ const estimatePageCount = (content: string) => {
 }
 
 export default function Screenwriting() {
+  const sub = useSubscriptionStore()
+  const canUseAI = sub.canUseAI()
+  const hasCredits = sub.hasCredits()
+
   const project = useProjectStore((s) => s.getActiveProject())
   const updateScript = useProjectStore((s) => s.updateScript)
   const syncFromScript = useProjectStore((s) => s.syncFromScript)
@@ -358,8 +364,22 @@ SUGGESTIONS:`
                 <button onClick={() => setShowAiAssist(false)} className="p-1 rounded hover:bg-[#242424] text-[#A3A3A3]"><X className="w-4 h-4" /></button>
               </div>
               {aiSuggestions.length === 0 && !aiLoading && (
-                <button onClick={generateAiSuggestions} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#9B59B6]/10 border border-[#9B59B6]/20 text-[#9B59B6] text-sm hover:bg-[#9B59B6]/20 transition-all">
-                  <Zap className="w-4 h-4" /> Analyze Script & Get Suggestions
+                <button
+                  onClick={generateAiSuggestions}
+                  disabled={!canUseAI || !hasCredits}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all ${
+                    !canUseAI || !hasCredits
+                      ? 'bg-[#242424] border border-[#333333] text-[#555] cursor-not-allowed'
+                      : 'bg-[#9B59B6]/10 border border-[#9B59B6]/20 text-[#9B59B6] hover:bg-[#9B59B6]/20'
+                  }`}
+                >
+                  {!canUseAI ? (
+                    <><Lock className="w-4 h-4" /> Upgrade to Analyze</>
+                  ) : !hasCredits ? (
+                    <><AlertTriangle className="w-4 h-4" /> No Credits Left</>
+                  ) : (
+                    <><Zap className="w-4 h-4" /> Analyze Script & Get Suggestions</>
+                  )}
                 </button>
               )}
               {aiLoading && (
@@ -376,7 +396,13 @@ SUGGESTIONS:`
                       <p className="text-xs text-[#CCCCCC]">{s}</p>
                     </div>
                   ))}
-                  <button onClick={generateAiSuggestions} className="text-xs text-[#9B59B6] hover:underline mt-1">Regenerate suggestions</button>
+                  <button
+                    onClick={generateAiSuggestions}
+                    disabled={!canUseAI || !hasCredits}
+                    className={`text-xs mt-1 ${!canUseAI || !hasCredits ? 'text-[#555] cursor-not-allowed' : 'text-[#9B59B6] hover:underline'}`}
+                  >
+                    Regenerate suggestions
+                  </button>
                 </div>
               )}
             </div>

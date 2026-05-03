@@ -5,11 +5,13 @@ import {
   Sparkles, Zap, Chrome, ArrowLeft
 } from 'lucide-react'
 import { useRoleStore } from '../stores/roleStore'
+import { useSubscriptionStore, PRO_FEATURES } from '../stores/subscriptionStore'
 import { trpcClient } from '../providers/trpc'
 
 export default function Login({ defaultMode }: { defaultMode?: "signin" | "register" } = {}) {
   const navigate = useNavigate()
   const roleStore = useRoleStore()
+  const subscriptionStore = useSubscriptionStore()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -38,6 +40,15 @@ export default function Login({ defaultMode }: { defaultMode?: "signin" | "regis
     const result = await roleStore.login(email, password)
     setLoading(false)
     if (result.success) {
+      // Set subscription plan — logged in users get trial Pro
+      subscriptionStore.setPlan({
+        planSlug: 'pro',
+        status: 'trial',
+        trialDaysLeft: 3,
+        aiCreditsUsed: 0,
+        aiCreditsLimit: 50,
+        features: PRO_FEATURES,
+      })
       navigate('/dashboard')
     } else {
       setError(result.error || 'Login failed. Please check your email and password.')
@@ -52,6 +63,15 @@ export default function Login({ defaultMode }: { defaultMode?: "signin" | "regis
     const result = await roleStore.register(name.trim(), email, password, registerRole)
     setLoading(false)
     if (result.success) {
+      // Set subscription plan — new users start on trial Pro
+      subscriptionStore.setPlan({
+        planSlug: 'pro',
+        status: 'trial',
+        trialDaysLeft: 3,
+        aiCreditsUsed: 0,
+        aiCreditsLimit: 50,
+        features: PRO_FEATURES,
+      })
       navigate('/dashboard')
     } else {
       setError(result.error || 'Registration failed. Please try again.')

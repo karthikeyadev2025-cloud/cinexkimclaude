@@ -1,12 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRoleStore } from '../stores/roleStore'
+import { useSubscriptionStore } from '../stores/subscriptionStore'
 import { trpc } from '../providers/trpc'
+import TrialBanner from '../components/TrialBanner'
 import {
   Folder, FileText, Image, Calendar, DollarSign, Users, ArrowRight, Plus,
   MoreHorizontal, TrendingUp, TrendingDown, Activity, Wand2, Clapperboard,
   Camera, Mic, Layers, Zap, HardDrive, Clock, ChevronRight, Bell, Crown,
-  Check, X, Trash2, Edit3, RefreshCw, Download, Film, UserPlus, MessageSquare
+  Check, X, Trash2, Edit3, RefreshCw, Download, Film, UserPlus, MessageSquare,
+  Cpu
 } from 'lucide-react'
 import {
   AreaChart, Area, PieChart, Pie, Cell, ResponsiveContainer,
@@ -126,6 +129,7 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const currentUser = useRoleStore((s) => s.user)
+  const sub = useSubscriptionStore()
   const userName = currentUser?.name || 'Filmmaker'
   const [activeProject, setActiveProject] = useState(1)
   const [greeting, setGreeting] = useState('Good day')
@@ -250,6 +254,8 @@ export default function Dashboard() {
   return (
     <div className="min-h-[100dvh] bg-[#060606] text-[#F0F0F0]">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-10 py-8 lg:py-10">
+        <TrialBanner />
+
         {/* Header */}
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-10">
           <div>
@@ -431,9 +437,15 @@ export default function Dashboard() {
                     <p className="font-inter text-xs text-[#6B6B6B]">API calls across all features this week</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#242424] text-xs text-[#A3A3A3]">
-                  <Activity className="w-3.5 h-3.5 text-[#27AE60]" />{serverProjects ? `${serverProjects.length * 12} total calls` : 'Start using AI tools'}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-[#111]">
+                <div>
+                  <p className="font-inter text-xs text-[#555]">AI Credits</p>
+                  <p className="font-inter text-lg font-semibold text-white">
+                    {currentUser ? `${sub.getCreditsRemaining()} left` : '—'}
+                  </p>
                 </div>
+                <Cpu className="w-5 h-5 text-[#6B6B6B]" />
+              </div>
               </div>
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">

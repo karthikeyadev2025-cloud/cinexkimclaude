@@ -40,9 +40,9 @@ export const localAuthRouter = createRouter({
         const passwordHash = await bcryptjs.hash(input.password, 10);
         const unionId = `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-        // Set trial end date (14 days from now)
+        // Set trial end date (3 days from now)
         const trialEndsAt = new Date();
-        trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+        trialEndsAt.setDate(trialEndsAt.getDate() + 3);
 
         const [{ id }] = await db
           .insert(schema.users)
@@ -165,7 +165,19 @@ export const localAuthRouter = createRouter({
         .then((rows) => rows.at(0));
 
       if (!user || !user.isActive) return null;
-      return user;
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        planSlug: user.planSlug || 'free',
+        subscriptionStatus: user.subscriptionStatus || 'free',
+        trialEndsAt: user.trialEndsAt ? new Date(user.trialEndsAt).toISOString() : null,
+        aiCreditsUsed: user.aiCreditsUsed || 0,
+        aiCreditsLimit: user.aiCreditsLimit || 10, // Free tier: 10 credits
+        isActive: user.isActive,
+        createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : null,
+      };
     } catch {
       return null;
     }

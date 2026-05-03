@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { createRouter, publicQuery, authedQuery } from "./middleware.js";
 import { getDb, isDbAvailable } from "./queries/connection.js";
 import * as schema from "../db/schema.js";
@@ -244,6 +244,41 @@ export const paymentRouter = createRouter({
     };
   }),
 
+  // Get payment history
+  getPayments: authedQuery.query(async ({ ctx }) => {
+    const userId = ctx.user!.id;
+    const payments = await getDb()
+      .select()
+      .from(schema.payments)
+      .where(eq(schema.payments.userId, userId))
+      .orderBy(desc(schema.payments.createdAt))
+      .limit(50);
+    return payments;
+  }),
+
+  // Get current plan with features
+  getPlan: authedQuery.query(async ({ ctx }) => {
+    const user = await getDb()
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, ctx.user!.id))
+      .then(r => r[0]);
+
+    const now = new Date();
+    const trialEnds = user.trialEndsAt ? new Date(user.trialEndsAt) : null;
+    const isTrialActive = trialEnds ? trialEnds > now : false;
+
+    return {
+      planSlug: user.planSlug || 'free',
+      status: isTrialActive ? 'trial' : user.subscriptionStatus || 'free',
+      trialEndsAt: trialEnds ? trialEnds.toISOString() : null,
+      trialDaysLeft: trialEnds ? Math.max(0, Math.ceil((trialEnds.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0,
+      aiCreditsUsed: user.aiCreditsUsed || 0,
+      aiCreditsLimit: user.aiCreditsLimit || 10,
+      features: getPlanFeatures(user.planSlug || 'free', isTrialActive),
+    };
+  }),
+
   // Get all plans
   getPlans: publicQuery.query(async () => {
     if (!isDbAvailable()) {
@@ -255,5 +290,37 @@ export const paymentRouter = createRouter({
     }
     const db = getDb();
     return db.select().from(schema.plans).where(eq(schema.plans.isActive, true)).orderBy(schema.plans.sortOrder);
-  }),
-});
+  })});
+
+function getPlanFeatures(planSlug: string, isTrial: boolean) {
+  const plans: Record<string, any> = {
+    free: {
+      aiImageGen: false,
+      aiVideoGen: false,
+      aiScriptAssist: false,
+      maxProjects: 1,
+      maxScenes: 10,
+      teamMembers: 0,
+      storageGB: 0.5,
+    },
+    starter: {
+      aiImageGen: true,
+      aiVideoGen: false,
+      aiScriptAssist: true,
+      maxProjects: 3,
+      maxScenes: 50,
+      teamMembers: 2,
+      storageGB: 5,
+    },
+    pro: {
+      aiImageGen: true,
+      aiVideoGen: true,
+      aiScriptAssist: true,
+      maxProjects: 10,
+      maxScenes: 200,
+      teamMembers: 10,
+      storageGB: 50,
+    },
+  };
+  return plans[planSlug] || plans.free;
+}

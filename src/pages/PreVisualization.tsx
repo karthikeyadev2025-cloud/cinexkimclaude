@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { useSubscriptionStore } from '../stores/subscriptionStore'
+import { Lock, AlertTriangle } from 'lucide-react'
 import {
   Film, Sparkles, Play, Download, Clock, Ratio, ArrowRight,
   Trash2, RefreshCw, CheckCircle2, Zap, X, Star, Copy, Check,
@@ -66,6 +68,11 @@ export default function PreVisualization() {
   const [playingVideo, setPlayingVideo] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'starred' | 'completed'>('all')
   const [copied, setCopied] = useState(false)
+
+  /* ─── Subscription Check ─── */
+  const sub = useSubscriptionStore()
+  const canUseVideo = sub.canUseVideo()
+  const hasCredits = sub.hasCredits()
 
   const assignedModel = assignment?.model || 'Not configured'
   const assignedProvider = provider?.name || assignment?.providerId || 'Not configured'
@@ -248,11 +255,11 @@ export default function PreVisualization() {
                 <div className="flex-1" />
                 <button
                   onClick={handleGenerate}
-                  disabled={!prompt.trim() || generating}
+                  disabled={!prompt.trim() || generating || !canUseVideo || !hasCredits}
                   className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-inter text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                  style={{ background: generating ? '#1a1a1a' : '#D4A853', color: generating ? '#888888' : '#060606', border: generating ? '1px solid #333333' : 'none' }}
+                  style={{ background: (!canUseVideo || !hasCredits) ? '#242424' : generating ? '#1a1a1a' : '#D4A853', color: (!canUseVideo || !hasCredits) ? '#555' : generating ? '#888888' : '#060606', border: generating ? '1px solid #333333' : 'none' }}
                 >
-                  {generating ? <><RefreshCw className="w-4 h-4 animate-spin" /> Generating... {Math.round(progress)}%</> : <><Sparkles className="w-4 h-4" /> Generate Video</>}
+                  {!canUseVideo ? <><Lock className="w-4 h-4" /> Pro Required</> : !hasCredits ? <><AlertTriangle className="w-4 h-4" /> No Credits</> : generating ? <><RefreshCw className="w-4 h-4 animate-spin" /> Generating... {Math.round(progress)}%</> : <><Sparkles className="w-4 h-4" /> Generate Video</>}
                 </button>
               </div>
               {generating && (

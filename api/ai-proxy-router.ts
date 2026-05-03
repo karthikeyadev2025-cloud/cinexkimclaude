@@ -1,5 +1,9 @@
 import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { createRouter, authedQuery } from "./middleware.js";
+import { getDb } from "./queries/connection.js";
+import * as schema from "../db/schema.js";
 
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN || "";
 const REPLICATE_API_BASE = "https://api.replicate.com/v1";
@@ -42,7 +46,15 @@ export const aiProxyRouter = createRouter({
         input: z.record(z.string(), z.any()).optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // Credit check
+      const user = await getDb().select().from(schema.users).where(eq(schema.users.id, ctx.user!.id)).then(r => r[0]);
+      const creditsUsed = user.aiCreditsUsed || 0;
+      const creditsLimit = user.aiCreditsLimit || 10;
+      if (creditsUsed >= creditsLimit) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: `AI credits exhausted. Used ${creditsUsed}/${creditsLimit}. Upgrade your plan.` });
+      }
+
       const modelVersions: Record<string, string> = {
         "meta/meta-llama-3-8b-instruct": "d7855a4f49ee0f12c393f9bf7fbdf5711e84d072c6a670a4f8c37b7a2bf37a64",
         "meta/meta-llama-3-70b-instruct": "087359cd1e6716d960840ab1a8f6bda297e23a80cf5322291ea3950647abda09",
@@ -54,6 +66,10 @@ export const aiProxyRouter = createRouter({
         version,
         input: input.input || { prompt: input.prompt, max_tokens: 512 },
       })) as { id: string; status: string; output?: unknown; urls?: { get: string } };
+
+      // Deduct credit
+      await getDb().update(schema.users).set({ aiCreditsUsed: creditsUsed + 1 }).where(eq(schema.users.id, ctx.user!.id));
+
       return prediction;
     }),
 
@@ -79,7 +95,15 @@ export const aiProxyRouter = createRouter({
         numOutputs: z.number().optional().default(1),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // Credit check
+      const user = await getDb().select().from(schema.users).where(eq(schema.users.id, ctx.user!.id)).then(r => r[0]);
+      const creditsUsed = user.aiCreditsUsed || 0;
+      const creditsLimit = user.aiCreditsLimit || 10;
+      if (creditsUsed >= creditsLimit) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: `AI credits exhausted. Used ${creditsUsed}/${creditsLimit}. Upgrade your plan.` });
+      }
+
       // Stability SDXL default version
       const version = "39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b";
       const prediction = (await replicateFetch("/predictions", {
@@ -91,6 +115,10 @@ export const aiProxyRouter = createRouter({
           num_outputs: input.numOutputs,
         },
       })) as { id: string; status: string; output?: string[]; urls?: { get: string } };
+
+      // Deduct credit
+      await getDb().update(schema.users).set({ aiCreditsUsed: creditsUsed + 1 }).where(eq(schema.users.id, ctx.user!.id));
+
       return prediction;
     }),
 
@@ -102,7 +130,15 @@ export const aiProxyRouter = createRouter({
         fps: z.number().optional().default(24),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // Credit check
+      const user = await getDb().select().from(schema.users).where(eq(schema.users.id, ctx.user!.id)).then(r => r[0]);
+      const creditsUsed = user.aiCreditsUsed || 0;
+      const creditsLimit = user.aiCreditsLimit || 10;
+      if (creditsUsed >= creditsLimit) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: `AI credits exhausted. Used ${creditsUsed}/${creditsLimit}. Upgrade your plan.` });
+      }
+
       // Kling v1.6 Standard via Replicate
       const version = "e658a31f8adbce1941065289637e5eb8b87777fc4e4a21d998e2d30a2221f099";
       const prediction = (await replicateFetch("/predictions", {
@@ -113,6 +149,10 @@ export const aiProxyRouter = createRouter({
           aspect_ratio: "16:9",
         },
       })) as { id: string; status: string; output?: string[]; urls?: { get: string } };
+
+      // Deduct credit
+      await getDb().update(schema.users).set({ aiCreditsUsed: creditsUsed + 1 }).where(eq(schema.users.id, ctx.user!.id));
+
       return prediction;
     }),
 

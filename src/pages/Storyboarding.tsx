@@ -3,9 +3,11 @@ import {
   LayoutGrid, Trash2, Download, Wand2, Image as ImageIcon,
   Type, Circle, Square, ArrowRight, Undo, Maximize2, X,
   ChevronLeft, ChevronRight, Upload, Save, CheckCircle2,
-  Clock, Film, RefreshCw
+  Clock, Film, RefreshCw, Lock, AlertTriangle
 } from 'lucide-react'
 import { useProjectStore } from '../stores/projectStore'
+import { useSubscriptionStore } from '../stores/subscriptionStore'
+import FeatureLock from '../components/FeatureLock'
 import { trpc } from '../providers/trpc'
 import { jsPDF } from 'jspdf'
 
@@ -37,6 +39,10 @@ const aiPromptTemplates = [
 ]
 
 export default function Storyboarding() {
+  const sub = useSubscriptionStore()
+  const canUseAI = sub.canUseAI()
+  const hasCredits = sub.hasCredits()
+
   const project = useProjectStore((s) => s.getActiveProject())
   const storeFrames = project?.frames || []
   const updateFrames = useProjectStore((s) => s.updateFrames)
@@ -458,7 +464,27 @@ export default function Storyboarding() {
               )}
             </div>
             <div className="flex flex-wrap gap-3">
-              <button className="btn-primary" onClick={generateImage} disabled={generating}>{generating ? 'Generating...' : 'Generate Image'}</button>
+              <button
+                onClick={generateImage}
+                disabled={!aiPrompt.trim() || generating || !canUseAI || !hasCredits}
+                className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                  !canUseAI || !hasCredits
+                    ? 'bg-[#242424] text-[#555] cursor-not-allowed'
+                    : generating
+                    ? 'bg-[#D4A853]/30 text-[#D4A853]'
+                    : 'bg-[#D4A853] text-[#060606] hover:bg-[#E8BF6A]'
+                }`}
+              >
+                {!canUseAI ? (
+                  <><Lock className="w-4 h-4" /> Upgrade to Generate</>
+                ) : !hasCredits ? (
+                  <><AlertTriangle className="w-4 h-4" /> No Credits Left</>
+                ) : generating ? (
+                  <><svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg> Generating...</>
+                ) : (
+                  <><Wand2 className="w-4 h-4" /> Generate Image</>
+                )}
+              </button>
               <button className="btn-secondary" onClick={() => castPhotoRef.current?.click()}><Upload className="w-4 h-4" /> Upload Cast Photo</button>
               <input ref={castPhotoRef} type="file" accept="image/*" className="hidden" onChange={handleCastPhotoUpload} />
               {generatedImage && <button className="btn-primary" onClick={applyGeneratedImage}><CheckCircle2 className="w-4 h-4" /> Apply to Frame</button>}
