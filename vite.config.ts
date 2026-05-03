@@ -21,5 +21,15 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          ui: ["framer-motion", "recharts", "lucide-react"],
+          trpc: ["@trpc/client", "@trpc/react-query", "@trpc/server", "@tanstack/react-query"],
+        },
+      },
+    },
   },
 })
