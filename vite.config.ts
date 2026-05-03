@@ -8,15 +8,17 @@ export default defineConfig(async ({ mode }) => {
 
   if (mode === "development") {
     const [{ default: devServer }, { inspectAttr }] = await Promise.all([
-      import("@hono/vite-dev-server"),
-      import("plugin-inspect-react-code"),
+      new Function('return import("@hono/vite-dev-server")')() as Promise<any>,
+      new Function('return import("plugin-inspect-react-code")')() as Promise<any>,
     ])
-    plugins.push(devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/).*$/] }))
-    plugins.push(inspectAttr())
+    plugins.unshift(
+      devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
+      inspectAttr(),
+    )
   }
 
   return {
-    base: '/',
+    base: "/",
     plugins,
     server: {
       port: 3000,
