@@ -103,14 +103,17 @@ export const aiProxyRouter = createRouter({
       }),
     )
     .mutation(async ({ input }) => {
-      // A generic video generation endpoint — user can supply their own version
-      // For now we return a structured response that the frontend can poll
-      return {
-        id: "pending",
-        status: "starting",
-        message: "Video generation queued via Replicate",
-        prompt: input.prompt,
-      };
+      // Kling v1.6 Standard via Replicate
+      const version = "e658a31f8adbce1941065289637e5eb8b87777fc4e4a21d998e2d30a2221f099";
+      const prediction = (await replicateFetch("/predictions", {
+        version,
+        input: {
+          prompt: input.prompt,
+          negative_prompt: "blur, low quality, distorted, watermark, text",
+          aspect_ratio: "16:9",
+        },
+      })) as { id: string; status: string; output?: string[]; urls?: { get: string } };
+      return prediction;
     }),
 
   voiceGenerate: authedQuery
