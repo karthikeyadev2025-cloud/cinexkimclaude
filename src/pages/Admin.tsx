@@ -177,6 +177,12 @@ export default function Admin() {
   // @ts-ignore — tRPC router type issue (admin router collides with built-in)
   const userDeactivate = trpc.admin.userDeactivate.useMutation()
 
+  /* ─── More tRPC: Projects, Payments, Logs ─── */
+  const { data: serverProjectsList } = trpc.project.list.useQuery()
+  const { data: serverAuditLogs } = trpc.admin.auditList.useQuery({ limit: 50, offset: 0 })
+  const { data: serverPayments } = trpc.payment.getPayments?.useQuery?.() ?? { data: null }
+
+
   useEffect(() => {
     if (serverUsers && serverUsers.length > 0) {
       const mapped: User[] = serverUsers.map((u: any, i: number) => ({
@@ -326,10 +332,30 @@ export default function Admin() {
   const impersonateUser = useCallback((user: User) => { showToast(`Impersonating ${user.name}...`); setTimeout(() => navigate('/dashboard'), 800) }, [navigate, showToast])
 
   /* API Actions */
-  const testApiConnection = useCallback((providerId: string) => {
+  const testApiConnection = useCallback(async (providerId: string) => {
     setApiTestResult({ id: providerId, status: 'testing', message: 'Testing...' })
-    setTimeout(() => { const success = Math.random() > 0.3; setApiTestResult({ id: providerId, status: success ? 'success' : 'error', message: success ? 'Connected (42ms)' : 'Failed: Invalid key' }); showToast(success ? 'API test passed' : 'API test failed'); setTimeout(() => setApiTestResult(null), 4000) }, 1500)
-  }, [showToast])
+    const provider = apiProviderList.find((p: any) => p.id === providerId)
+    if (!provider?.apiKey) {
+      setApiTestResult({ id: providerId, status: 'error', message: 'No API key configured' })
+      showToast('Add API key first')
+      setTimeout(() => setApiTestResult(null), 4000)
+      return
+    }
+    try {
+      const resp = await fetch('/api/health')
+      if (resp.ok) {
+        setApiTestResult({ id: providerId, status: 'success', message: 'API Gateway OK' })
+        showToast('API connection test passed')
+      } else {
+        setApiTestResult({ id: providerId, status: 'error', message: `HTTP ${resp.status}` })
+        showToast('API test failed')
+      }
+    } catch (err: any) {
+      setApiTestResult({ id: providerId, status: 'error', message: 'Network error' })
+      showToast('API test failed: network error')
+    }
+    setTimeout(() => setApiTestResult(null), 4000)
+  }, [showToast, apiProviderList])
   const saveApiKey = useCallback((providerId: string, key: string) => { apiStore.setApiKey(providerId, key); showToast('API key saved') }, [apiStore, showToast])
 
   /* Stats */
@@ -358,9 +384,28 @@ export default function Admin() {
   const paginatedUsers = useMemo(() => { const start = (currentPage - 1) * pageSize; return sortedUsers.slice(start, start + pageSize) }, [sortedUsers, currentPage])
   const totalPages = Math.ceil(sortedUsers.length / pageSize)
 
-  const filteredProjects = useMemo(() => MOCK_PROJECTS.filter((p) => p.title.toLowerCase().includes(projectSearch.toLowerCase()) || p.owner.toLowerCase().includes(projectSearch.toLowerCase())), [projectSearch])
+  const projectList = serverProjectsList && serverProjectsList.length > 0
+    ? serverProjectsList.map((p: any) => ({
+        id: String(p.id),
+        title: p.title || 'Untitled',
+        owner: p.owner?.name || p.producerName || 'Unknown',
+        status: (p.status || 'active') as 'active' | 'archived' | 'draft',
+        updated: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : 'Recently',
+        scenes: p._count?.scenes || 0,
+        budget: p.budget || 0,
+      }))
+    : MOCK_PROJECTS
+  const filteredProjects = useMemo(() => projectList.filter((p) => p.title.toLowerCase().includes(projectSearch.toLowerCase()) || p.owner.toLowerCase().includes(projectSearch.toLowerCase())), [projectList, projectSearch])
   const filteredTransactions = useMemo(() => { let result = transactions.filter((t) => t.user.toLowerCase().includes(txSearch.toLowerCase())); if (txStatusFilter !== 'all') result = result.filter((t) => t.status === txStatusFilter); return result }, [transactions, txSearch, txStatusFilter])
-  const filteredLogs = useMemo(() => logsFilter === 'all' ? MOCK_LOGS : MOCK_LOGS.filter((l) => l.level === logsFilter), [logsFilter])
+  const logList = serverAuditLogs && Array.isArray(serverAuditLogs)
+    ? serverAuditLogs.map((log: any) => ({
+        time: log.createdAt ? new Date(log.createdAt).toLocaleString() : 'Unknown',
+        level: (log.level || 'info') as 'info' | 'warn' | 'error',
+        source: log.source || 'System',
+        message: log.message || 'No message',
+      }))
+    : MOCK_LOGS
+  const filteredLogs = useMemo(() => logsFilter === 'all' ? logList : logList.filter((l: Log) => l.level === logsFilter), [logList, logsFilter])
 
   /* Casting Stats */
   const cStats = castingStore.getStats()
@@ -467,12 +512,13 @@ export default function Admin() {
                 <div className="rounded-xl border border-[#242424] bg-[#0D0D0D] p-5" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
                   <h3 className="text-sm font-semibold text-white mb-3">Revenue Breakdown</h3>
                   <div className="space-y-3">
-                    {[
-                      { label: 'Subscription Revenue', value: 3420, pct: 68, color: '#D4A853' },
-                      { label: 'API Usage', value: 980, pct: 20, color: '#2D9CDB' },
-                      { label: 'One-time Purchases', value: 490, pct: 10, color: '#27AE60' },
-                      { label: 'Other', value: 98, pct: 2, color: '#6B6B6B' },
-                    ].map((r) => (
+                    {(totalRevenue > 0 ? [
+                      { label: 'Completed Revenue', value: totalRevenue, pct: Math.round((totalRevenue / (totalRevenue + transactions.filter((t) => t.status === 'pending').reduce((a, t) => a + t.amount, 0))) * 100) || 100, color: '#D4A853' },
+                      { label: 'Pending Revenue', value: transactions.filter((t) => t.status === 'pending').reduce((a, t) => a + t.amount, 0), pct: Math.round((transactions.filter((t) => t.status === 'pending').reduce((a, t) => a + t.amount, 0) / (totalRevenue + transactions.filter((t) => t.status === 'pending').reduce((a, t) => a + t.amount, 0))) * 100) || 0, color: '#E67E22' },
+                    ] : [
+                      { label: 'Subscription Revenue', value: 0, pct: 0, color: '#D4A853' },
+                      { label: 'Pending Payments', value: 0, pct: 0, color: '#E67E22' },
+                    ]).map((r) => (
                       <div key={r.label}>
                         <div className="flex items-center justify-between mb-1"><span className="text-xs text-[#888]">{r.label}</span><span className="text-xs font-medium text-white">${r.value}</span></div>
                         <div className="w-full h-1 bg-[#181818] rounded-full overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${r.pct}%`, background: r.color }} /></div>
@@ -485,7 +531,13 @@ export default function Admin() {
                 <div className="rounded-xl border border-[#242424] bg-[#0D0D0D] p-5" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
                   <h3 className="text-sm font-semibold text-white mb-3">System Status</h3>
                   <div className="space-y-2.5">
-                    {[{ name: 'API Gateway', status: 'Operational', color: '#27AE60' }, { name: 'Database', status: 'Operational', color: '#27AE60' }, { name: 'Auth Service', status: 'Operational', color: '#27AE60' }, { name: 'File Storage', status: 'Warning', color: '#E67E22' }, { name: 'Email Service', status: 'Operational', color: '#27AE60' }].map((s) => (
+                    {[
+                      { name: 'API Gateway', status: isServerMode ? 'Operational' : 'Unknown', color: isServerMode ? '#27AE60' : '#E67E22' },
+                      { name: 'Database', status: isServerMode ? 'Operational' : 'Unknown', color: isServerMode ? '#27AE60' : '#E67E22' },
+                      { name: 'Auth Service', status: users.length > 0 ? 'Operational' : 'Check', color: users.length > 0 ? '#27AE60' : '#E67E22' },
+                      { name: 'Admin Panel', status: serverUsers.length > 0 ? 'Connected' : 'Local Mode', color: serverUsers.length > 0 ? '#27AE60' : '#2D9CDB' },
+                      { name: 'AI Services', status: apiProviderList.some((p: any) => p.isEnabled) ? 'Ready' : 'No APIs', color: apiProviderList.some((p: any) => p.isEnabled) ? '#27AE60' : '#E67E22' },
+                    ].map((s) => (
                       <div key={s.name} className="flex items-center justify-between p-2 rounded-lg bg-[#111]">
                         <span className="text-xs text-[#888]">{s.name}</span>
                         <span className="flex items-center gap-1 text-[11px] font-medium" style={{ color: s.color }}><span className="w-1.5 h-1.5 rounded-full" style={{ background: s.color }} />{s.status}</span>
@@ -1196,7 +1248,7 @@ export default function Admin() {
               </div>
             </div>
           </div>
-        )} 
+        )}
 
         {/* Confirm Action */}
         {confirmAction && (
