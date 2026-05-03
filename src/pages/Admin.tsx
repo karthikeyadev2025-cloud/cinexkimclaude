@@ -27,6 +27,7 @@ import {
   toggleUserActiveOnServer,
   updateFeatureOnServer,
 } from '../stores/adminSync'
+import { trpc } from '../providers/trpc'
 
 /* ─── Types ─── */
 interface User {
@@ -169,7 +170,32 @@ export default function Admin() {
   }, [])
 
   useEffect(() => { loadServerData() }, [loadServerData])
+  /* ─── Users: server data with mock fallback ─── */
   const [users, setUsers] = useState<User[]>(MOCK_USERS)
+  // @ts-ignore — tRPC router type issue (admin router collides with built-in)
+  const userUpdateRole = trpc.admin.userUpdateRole.useMutation()
+  // @ts-ignore — tRPC router type issue (admin router collides with built-in)
+  const userDeactivate = trpc.admin.userDeactivate.useMutation()
+
+  useEffect(() => {
+    if (serverUsers && serverUsers.length > 0) {
+      const mapped: User[] = serverUsers.map((u: any, i: number) => ({
+        id: String(u.id || i),
+        name: u.name || 'Unknown',
+        email: u.email || '',
+        role: (u.role === 'admin' ? 'admin' : u.role === 'casting' ? 'casting_director' : u.role === 'talent' ? 'user' : 'user') as User['role'],
+        status: (u.isActive === false ? 'banned' : u.emailVerified ? 'active' : 'pending') as User['status'],
+        avatar: (u.name || 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+        plan: (u.planSlug || 'free') as User['plan'],
+        projects: u._count?.projects || 0,
+        spend: 0,
+        joined: u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-CA') : '2024-01-01',
+        lastActive: 'Recently',
+      }))
+      setUsers(mapped)
+    }
+  }, [serverUsers])
+
   const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS)
 
   /* Filters */
@@ -210,19 +236,93 @@ export default function Admin() {
   const planStore = usePlanStore()
   const providers = apiStore.providers
 
+  /* ─── Merged data: server-first with local fallback ─── */
+  const featureList = serverFeatures && serverFeatures.length > 0
+    ? serverFeatures.map((f: any) => ({
+        id: f.id,
+        name: f.name || 'Unknown',
+        category: f.category || 'General',
+        description: f.description || '',
+        enabled: !!f.enabled,
+        lastChanged: f.updatedAt ? new Date(f.updatedAt).toLocaleDateString() : 'Never',
+      }))
+    : featureToggleStore.features
+
+  const planList = serverPlans && serverPlans.length > 0
+    ? serverPlans.map((p: any) => ({
+        id: p.id || p.slug || 'unknown',
+        name: p.name || 'Unknown',
+        shortName: p.shortName || p.name || 'Unknown',
+        subtitle: p.subtitle || '',
+        monthlyPrice: p.monthlyPrice ?? 0,
+        annualPrice: p.annualPrice ?? 0,
+        monthlyPriceINR: p.monthlyPriceINR ?? 0,
+        annualPriceINR: p.annualPriceINR ?? 0,
+        description: p.description || '',
+        cta: p.cta || 'Subscribe',
+        featured: !!p.featured,
+        badge: p.badge,
+        icon: p.icon || 'Star',
+        maxProjects: p.maxProjects ?? -1,
+        maxTeamSeats: p.maxTeamSeats ?? -1,
+        maxStorageGB: p.maxStorageGB ?? -1,
+        aiGenerationsPerMonth: p.aiGenerationsPerMonth ?? -1,
+        maxScenesPerScript: p.maxScenesPerScript ?? -1,
+        maxCastingCalls: p.maxCastingCalls ?? -1,
+        features: Array.isArray(p.features) ? p.features : [],
+        exportFormats: Array.isArray(p.exportFormats) ? p.exportFormats : [],
+        supportLevel: p.supportLevel || 'community',
+        hasWhiteLabel: !!p.hasWhiteLabel,
+        hasApiAccess: !!p.hasApiAccess,
+        hasSso: !!p.hasSso,
+        hasSlas: !!p.hasSlas,
+        hasCustomModels: !!p.hasCustomModels,
+        hasOnPremise: !!p.hasOnPremise,
+      }))
+    : Object.values(planStore.plans)
+
+  const apiProviderList = serverApiConfigs && serverApiConfigs.length > 0
+    ? serverApiConfigs.map((c: any) => ({
+        id: c.id || `api-${c.provider}`,
+        name: c.name || c.provider || 'Unknown',
+        category: c.category || 'llm',
+        baseUrl: c.baseUrl || '',
+        apiKey: c.apiKey || '',
+        model: c.model || '',
+        models: Array.isArray(c.models) ? c.models : [],
+        customParams: c.customParams || {},
+        isEnabled: !!c.isEnabled,
+        monthlyCap: c.monthlyCap ?? 0,
+        monthlyUsed: c.monthlyUsed ?? 0,
+        lastTested: c.lastTested || null,
+        status: c.status || 'untested',
+      }))
+    : providers
+
   /* Toast */
   const showToast = useCallback((msg: string) => { setToastMsg(msg) }, [])
   const clearToast = useCallback(() => setToastMsg(null), [])
 
   /* User Actions */
   const toggleBan = useCallback((id: string) => {
-    setUsers((prev) => { const target = prev.find((u) => u.id === id); const next = prev.map((u) => (u.id === id ? { ...u, status: u.status === 'active' ? 'banned' as const : 'active' as const } : u)); showToast(`${target?.name || 'User'} ${target?.status === 'active' ? 'banned' : 'unbanned'}`); return next })
-  }, [showToast])
+    const target = users.find((u) => u.id === id)
+    if (!target) return
+    const newActive = target.status === 'banned'
+    userDeactivate.mutate({ id: Number(id), isActive: newActive })
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, status: newActive ? 'active' as const : 'banned' as const } : u)))
+    showToast(`${target.name} ${newActive ? 'unbanned' : 'banned'}`)
+  }, [users, showToast, userDeactivate])
   const deleteUser = useCallback((id: string) => {
     const target = users.find((u) => u.id === id)
     setConfirmAction({ title: 'Delete User', message: `Permanently delete ${target?.name || 'this user'}? Cannot be undone.`, onConfirm: () => { setUsers((prev) => prev.filter((u) => u.id !== id)); showToast('User deleted'); setConfirmAction(null) } })
   }, [users, showToast])
-  const saveUserEdit = useCallback(() => { if (!editUser) return; setUsers((prev) => prev.map((u) => (u.id === editUser.id ? editUser : u))); showToast(`${editUser.name} updated`); setEditUser(null) }, [editUser, showToast])
+  const saveUserEdit = useCallback(() => {
+    if (!editUser) return
+    userUpdateRole.mutate({ id: Number(editUser.id), role: editUser.role === 'admin' ? 'admin' : editUser.role === 'casting_director' ? 'casting' : 'user' })
+    setUsers((prev) => prev.map((u) => (u.id === editUser.id ? editUser : u)))
+    showToast(`${editUser.name} updated`)
+    setEditUser(null)
+  }, [editUser, showToast, userUpdateRole])
   const impersonateUser = useCallback((user: User) => { showToast(`Impersonating ${user.name}...`); setTimeout(() => navigate('/dashboard'), 800) }, [navigate, showToast])
 
   /* API Actions */
@@ -859,11 +959,11 @@ export default function Admin() {
           <div className="space-y-4 animate-in fade-in duration-300">
             <div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-white">Pricing Plans</h3><button onClick={() => { planStore.updatePlan('short_film', { name: 'New Plan', description: 'Description here', monthlyPrice: 99, features: [] }); showToast('Plan added') }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#D4A853] text-[#060606] text-xs font-semibold hover:bg-[#E8BF6A]"><Plus className="w-3.5 h-3.5" /> Add Plan</button></div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.values(planStore.plans).map((plan) => (
+              {planList.map((plan: any) => (
                 <div key={plan.id} className="rounded-xl border border-[#242424] bg-[#0D0D0D] p-5 hover:border-[#333333] transition-all">
                   <div className="flex items-center justify-between mb-3"><h4 className="text-sm font-semibold text-white">{plan.name}</h4><span className="text-lg font-bold text-[#D4A853]">${plan.monthlyPrice}</span></div>
                   <p className="text-xs text-[#6B6B6B] mb-3">{plan.description}</p>
-                  <div className="space-y-1.5 mb-4">{plan.features.map((f, i) => (<div key={i} className="flex items-center gap-2 text-xs"><span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] bg-[#27AE60]/20 text-[#27AE60]">✓</span><span className="text-white">{f}</span></div>))}</div>
+                  <div className="space-y-1.5 mb-4">{plan.features.map((f: string, i: number) => (<div key={i} className="flex items-center gap-2 text-xs"><span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] bg-[#27AE60]/20 text-[#27AE60]">✓</span><span className="text-white">{f}</span></div>))}</div>
                   <div className="flex gap-2"><button className="flex-1 py-2 rounded-lg border border-[#242424] text-xs text-[#888] hover:text-white hover:bg-[#131313]">Edit</button></div>
                 </div>
               ))}
@@ -878,7 +978,7 @@ export default function Admin() {
           <div className="space-y-4 animate-in fade-in duration-300">
             <div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-white">AI API Configuration</h3></div>
             <div className="space-y-3">
-              {providers.map((provider) => (
+              {apiProviderList.map((provider) => (
                 <div key={provider.id} className="rounded-xl border border-[#242424] bg-[#0D0D0D] p-5" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-[#131313] border border-[#242424] flex items-center justify-center text-lg"><Cpu className="w-5 h-5 text-[#D4A853]" /></div><div><h4 className="text-sm font-semibold text-white">{provider.name}</h4><p className="text-[11px] text-[#555]">{provider.category}</p></div></div>
@@ -898,7 +998,7 @@ export default function Admin() {
           <div className="space-y-4 animate-in fade-in duration-300">
             <div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-white">Feature Toggles</h3></div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {featureToggleStore.features.map((feature) => (
+              {featureList.map((feature) => (
                 <div key={feature.id} className="rounded-xl border border-[#242424] bg-[#0D0D0D] p-4 flex items-start justify-between hover:border-[#333333] transition-all">
                   <div><h4 className="text-xs font-semibold text-white">{feature.name}</h4><p className="text-[10px] text-[#555] mt-0.5">{feature.description}</p><span className="text-[9px] text-[#555] mt-1 inline-block px-1.5 py-0.5 rounded bg-[#181818]">{feature.category}</span></div>
                   <button onClick={() => { featureToggleStore.toggle(feature.id); showToast(`${feature.name} ${featureToggleStore.getFeature(feature.id)?.enabled ? 'enabled' : 'disabled'}`) }} className={`relative w-11 h-6 rounded-full transition-colors ${feature.enabled ? 'bg-[#D4A853]' : 'bg-[#242424]'}`}><span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${feature.enabled ? 'translate-x-5' : ''}`} /></button>
@@ -1096,7 +1196,7 @@ export default function Admin() {
               </div>
             </div>
           </div>
-        )}
+        )} 
 
         {/* Confirm Action */}
         {confirmAction && (

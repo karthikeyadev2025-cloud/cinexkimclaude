@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { User, Bell, Globe, Moon, CreditCard, LogOut, Save, Check, ChevronRight } from 'lucide-react'
+import { trpc } from '../providers/trpc'
 import { useRoleStore } from '../stores/roleStore'
 
 const LANGUAGES = [
@@ -24,6 +25,16 @@ export default function SettingsPage() {
   const [language, setLanguage] = useState('en')
   const [emailNotif, setEmailNotif] = useState(true)
   const [pushNotif, setPushNotif] = useState(false)
+
+  /* ─── Profile from server ─── */
+  const { data: profile } = trpc.localAuth.me.useQuery()
+  const token = useRoleStore((s) => s.token)
+
+  // Sync server profile to local state when loaded
+  useEffect(() => {
+    if (profile?.name) setName(profile.name)
+    if (profile?.email) setEmail(profile.email)
+  }, [profile])
 
   if (!isAuthenticated) {
     return (
@@ -100,6 +111,22 @@ export default function SettingsPage() {
             {activeTab === 'profile' && (
               <div className="bg-[#111111] border border-[#242424] rounded-xl p-6">
                 <h2 className="font-space-grotesk text-lg font-semibold text-white mb-6">Profile</h2>
+
+                {/* Server Profile Info */}
+                {profile && (
+                  <div className="mb-6 p-4 rounded-xl bg-[#131313] border border-[#242424]">
+                    <h3 className="text-sm font-semibold text-white mb-2">Server Profile</h3>
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                      <div><span className="text-[#888]">Name:</span> <span className="text-white">{profile.name || '—'}</span></div>
+                      <div><span className="text-[#888]">Email:</span> <span className="text-white">{profile.email || '—'}</span></div>
+                      <div><span className="text-[#888]">Role:</span> <span className="text-white capitalize">{profile.role || '—'}</span></div>
+                      <div><span className="text-[#888]">Plan:</span> <span className="text-white capitalize">{profile.planSlug || 'free'}</span></div>
+                      <div><span className="text-[#888]">Member since:</span> <span className="text-white">{profile.createdAt ? new Date(profile.createdAt).toLocaleDateString() : '—'}</span></div>
+                      <div><span className="text-[#888]">Auth method:</span> <span className="text-white">{profile.authProvider || 'local'}</span></div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   <div>
                     <label className="block font-inter text-xs text-[#6B6B6B] uppercase mb-1.5">Display Name</label>
@@ -216,10 +243,8 @@ export default function SettingsPage() {
                       <p className="font-space-grotesk text-lg font-semibold text-white">Starter</p>
                       <p className="font-inter text-sm text-[#888888]">Free forever</p>
                     </div>
-                    <Link to="/pricing" className="text-[#D4A853] font-inter text-sm hover:underline">Upgrade</Link>
                   </div>
                 </div>
-                <p className="font-inter text-sm text-[#6B6B6B] text-center">Payment history will appear here once you upgrade to a paid plan.</p>
               </div>
             )}
           </div>
