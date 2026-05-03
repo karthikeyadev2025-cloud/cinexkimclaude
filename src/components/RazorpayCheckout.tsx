@@ -11,6 +11,7 @@ export default function RazorpayCheckout({ planSlug, billingCycle = 'monthly', o
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const token = useRoleStore((s) => s.token)
+  const user = useRoleStore((s) => s.user)
 
   const handlePayment = async () => {
     setLoading(true)
@@ -74,8 +75,8 @@ export default function RazorpayCheckout({ planSlug, billingCycle = 'monthly', o
           }
         },
         prefill: {
-          name: '',
-          email: '',
+          name: user?.name || '',
+          email: user?.email || '',
           contact: '',
         },
         theme: {

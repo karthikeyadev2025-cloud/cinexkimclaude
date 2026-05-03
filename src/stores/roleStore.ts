@@ -79,7 +79,7 @@ export const useRoleStore = create<RoleState>()(
             name,
             email,
             password,
-            role: role as 'user' | 'admin' | 'casting' | 'talent',
+            role: role as 'user' | 'casting' | 'talent',
           })
           const { token, user } = result
           localStorage.setItem('cinex_token', token)
