@@ -1,12 +1,12 @@
-import { authRouter } from "./auth-router";
-import { localAuthRouter } from "./local-auth-router";
-import { googleAuthRouter } from "./google-auth-router";
-import { castingRouter } from "./casting-router";
-import { projectRouter } from "./project-router";
-import { adminRouter } from "./admin-router";
-import { aiProxyRouter } from "./ai-proxy-router";
-import { paymentRouter } from "./payment-router";
-import { createRouter, publicQuery } from "./middleware";
+import { authRouter } from "./auth-router.js";
+import { localAuthRouter } from "./local-auth-router.js";
+import { googleAuthRouter } from "./google-auth-router.js";
+import { castingRouter } from "./casting-router.js";
+import { projectRouter } from "./project-router.js";
+import { adminRouter } from "./admin-router.js";
+import { aiProxyRouter } from "./ai-proxy-router.js";
+import { paymentRouter } from "./payment-router.js";
+import { createRouter, publicQuery } from "./middleware.js";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),

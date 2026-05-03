@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { eq, desc, sql, asc } from "drizzle-orm";
-import { createRouter, adminQuery } from "./middleware";
-import { getDb } from "./queries/connection";
-import * as schema from "../db/schema";
-import type { InsertApiConfig } from "../db/schema";
+import { createRouter, adminQuery } from "./middleware.js";
+import { getDb } from "./queries/connection.js";
+import * as schema from "../db/schema.js";
+import type { InsertApiConfig } from "../db/schema.js";
 
 export const adminRouter = createRouter({
   /* ─── Dashboard Stats ─── */

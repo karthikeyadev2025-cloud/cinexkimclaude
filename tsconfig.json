@@ -10,6 +10,7 @@
   ],
   "exclude": ["api", "db"],
   "compilerOptions": {
+    "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
       "@/*": [

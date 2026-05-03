@@ -1,10 +1,10 @@
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import type { User } from "../db/schema";
-import { authenticateRequest } from "./kimi/auth";
-import { verifyLocalToken } from "./lib/local-jwt";
-import { getDb } from "./queries/connection";
+import type { User } from "../db/schema.js";
+import { authenticateRequest } from "./kimi/auth.js";
+import { verifyLocalToken } from "./lib/local-jwt.js";
+import { getDb } from "./queries/connection.js";
 import { eq } from "drizzle-orm";
-import * as schema from "../db/schema";
+import * as schema from "../db/schema.js";
 
 export type TrpcContext = {
   req: Request;

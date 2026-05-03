@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { createRouter, publicQuery } from "./middleware";
-import { getDb, isDbAvailable } from "./queries/connection";
-import * as schema from "../db/schema";
-import { signLocalToken } from "./lib/local-jwt";
+import { createRouter, publicQuery } from "./middleware.js";
+import { getDb, isDbAvailable } from "./queries/connection.js";
+import * as schema from "../db/schema.js";
+import { signLocalToken } from "./lib/local-jwt.js";
 import { TRPCError } from "@trpc/server";
-import { env } from "./lib/env";
+import { env } from "./lib/env.js";
 
 export const googleAuthRouter = createRouter({
   getAuthUrl: publicQuery.query(() => {

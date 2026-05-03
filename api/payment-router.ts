@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { createRouter, publicQuery, authedQuery } from "./middleware";
-import { getDb, isDbAvailable } from "./queries/connection";
-import * as schema from "../db/schema";
+import { createRouter, publicQuery, authedQuery } from "./middleware.js";
+import { getDb, isDbAvailable } from "./queries/connection.js";
+import * as schema from "../db/schema.js";
 import { TRPCError } from "@trpc/server";
-import { env } from "./lib/env";
+import { env } from "./lib/env.js";
 
 export const paymentRouter = createRouter({
   // Get Razorpay Key ID for frontend
