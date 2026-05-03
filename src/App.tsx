@@ -35,6 +35,7 @@ import FeatureToggleGuard from './components/FeatureToggleGuard'
 import ComingSoon from './components/ComingSoon'
 import TalentDashboard from './pages/TalentDashboard'
 import CastingDirectorDashboard from './pages/CastingDirectorDashboard'
+import Onboarding from './pages/Onboarding'
 
 /* Super Admin */
 import ApiManager from './pages/SuperAdmin/ApiManager'
@@ -90,6 +91,7 @@ export default function App() {
       <Route path="/plans" element={<Layout><PlansPage /></Layout>} />
 
       {/* Casting Routes */}
+      <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/casting-dashboard" element={<Layout><CastingDirectorDashboard /></Layout>} />
       <Route path="/auditions" element={<Layout><TalentDashboard /></Layout>} />
       <Route path="/shortlists" element={<Layout><ComingSoon featureName="Shortlists" description="Curate actor shortlists for productions." eta="Q2 2025" /></Layout>} />

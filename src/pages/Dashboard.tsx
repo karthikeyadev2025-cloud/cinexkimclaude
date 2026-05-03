@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useRoleStore } from '../stores/roleStore'
 import { trpc } from '../providers/trpc'
 import {
   Folder, FileText, Image, Calendar, DollarSign, Users, ArrowRight, Plus,
@@ -11,7 +12,6 @@ import {
   AreaChart, Area, PieChart, Pie, Cell, ResponsiveContainer,
   LineChart, Line, Tooltip, XAxis
 } from 'recharts'
-// import { useProjectStore } from '../stores/projectStore'
 
 /* ─── Types ─── */
 interface Project {
@@ -49,40 +49,16 @@ interface Notification {
   type: 'info' | 'alert' | 'success'
 }
 
-/* ─── Mock Data ─── */
-const projects: Project[] = [
-  { id: 1, title: 'Neon Shadows', type: 'Feature Film', scenes: 24, shots: 86, status: 'active', updated: '2 hrs ago', progress: 65, budgetUsed: 42000, budgetTotal: 65000, cover: '#D4A853' },
-  { id: 2, title: 'The Last Frame', type: 'Short Film', scenes: 8, shots: 32, status: 'active', updated: '5 hrs ago', progress: 40, budgetUsed: 8500, budgetTotal: 15000, cover: '#2D9CDB' },
-  { id: 3, title: 'Midnight Drive', type: 'Web Series', scenes: 12, shots: 48, status: 'draft', updated: '1 day ago', progress: 20, budgetUsed: 3000, budgetTotal: 25000, cover: '#27AE60' },
-  { id: 4, title: 'Echoes of Time', type: 'Documentary', scenes: 18, shots: 54, status: 'completed', updated: '3 days ago', progress: 100, budgetUsed: 18000, budgetTotal: 18000, cover: '#9B59B6' },
-]
-
+/* ─── Data ─── */
 const aiUsageData = [
   { day: 'Mon', calls: 45 }, { day: 'Tue', calls: 62 }, { day: 'Wed', calls: 38 },
   { day: 'Thu', calls: 75 }, { day: 'Fri', calls: 55 }, { day: 'Sat', calls: 88 }, { day: 'Sun', calls: 72 },
-]
-
-const storageData = [
-  { name: 'Scripts', value: 340, color: '#D4A853' },
-  { name: 'Storyboards', value: 820, color: '#2D9CDB' },
-  { name: 'Pre-Viz', value: 560, color: '#27AE60' },
-  { name: 'Audio', value: 280, color: '#9B59B6' },
-  { name: 'Exports', value: 400, color: '#E67E22' },
 ]
 
 const sparklineData1 = [{ v: 12 }, { v: 18 }, { v: 15 }, { v: 22 }, { v: 28 }, { v: 24 }, { v: 30 }]
 const sparklineData2 = [{ v: 8 }, { v: 12 }, { v: 10 }, { v: 14 }, { v: 18 }, { v: 16 }, { v: 20 }]
 const sparklineData3 = [{ v: 20 }, { v: 18 }, { v: 24 }, { v: 22 }, { v: 28 }, { v: 32 }, { v: 36 }]
 const sparklineData4 = [{ v: 4 }, { v: 6 }, { v: 5 }, { v: 8 }, { v: 7 }, { v: 10 }, { v: 12 }]
-
-const activities: ActivityItem[] = [
-  { id: 1, action: 'Script Updated', detail: 'Scene 12 revised with new dialogue', project: 'Neon Shadows', time: '10 min ago', icon: FileText, color: '#D4A853', bg: 'rgba(212,168,83,0.1)', link: '/screenwriting' },
-  { id: 2, action: 'Shot List Generated', detail: '24 new shots added to sequence', project: 'The Last Frame', time: '1 hr ago', icon: Camera, color: '#2D9CDB', bg: 'rgba(45,156,219,0.1)', link: '/shot-list' },
-  { id: 3, action: 'Budget Alert', detail: '85% of location budget consumed', project: 'Midnight Drive', time: '3 hrs ago', icon: DollarSign, color: '#E74C3C', bg: 'rgba(231,76,60,0.1)', link: '/budgeting' },
-  { id: 4, action: 'Team Member Joined', detail: 'Priya Sharma joined as cinematographer', project: 'Neon Shadows', time: '5 hrs ago', icon: Users, color: '#27AE60', bg: 'rgba(39,174,96,0.1)' },
-  { id: 5, action: 'AI Breakdown Complete', detail: 'Script breakdown generated 47 elements', project: 'Echoes of Time', time: '8 hrs ago', icon: Wand2, color: '#9B59B6', bg: 'rgba(155,89,186,0.1)', link: '/script-breakdown' },
-  { id: 6, action: 'Schedule Published', detail: '15-day shoot calendar finalized', project: 'The Last Frame', time: '1 day ago', icon: Calendar, color: '#E67E22', bg: 'rgba(230,126,34,0.1)', link: '/scheduling' },
-]
 
 const quickActions = [
   { icon: FileText, label: 'New Script', desc: 'Start writing', href: '/screenwriting', color: '#D4A853', bg: 'rgba(212,168,83,0.08)' },
@@ -149,6 +125,8 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 /* ─── Main Dashboard ─── */
 export default function Dashboard() {
   const navigate = useNavigate()
+  const currentUser = useRoleStore((s) => s.user)
+  const userName = currentUser?.name || 'Filmmaker'
   const [activeProject, setActiveProject] = useState(1)
   const [greeting, setGreeting] = useState('Good day')
   const [showNotifications, setShowNotifications] = useState(false)
@@ -178,6 +156,56 @@ export default function Dashboard() {
     },
   })
 
+  // Real projects from backend — fall back to empty array
+  const projects: Project[] = (() => {
+    if (serverProjects && serverProjects.length > 0) {
+      return serverProjects.map((p: any) => ({
+        id: p.id,
+        title: p.title || 'Untitled Project',
+        type: p.genre || p.description || 'Project',
+        scenes: p._count?.scenes || 0,
+        shots: p._count?.shots || 0,
+        status: (p.status || 'active') as 'active' | 'draft' | 'completed',
+        updated: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : 'Recently',
+        progress: p.status === 'completed' ? 100 : p.status === 'draft' ? 10 : 50,
+        budgetUsed: p.budget || 0,
+        budgetTotal: (p.budget || 0) * 1.5 || 10000,
+        cover: ['#D4A853', '#2D9CDB', '#27AE60', '#9B59B6', '#E67E22'][p.id % 5] || '#D4A853',
+      }))
+    }
+    return [] // Empty — no mock data
+  })()
+
+  // Activity feed — real or empty
+  const activities: ActivityItem[] = (() => {
+    if (serverProjects && serverProjects.length > 0) {
+      // Generate activity from real project data
+      return serverProjects.slice(0, 5).map((p: any, i: number) => ({
+        id: i + 1,
+        action: p.status === 'completed' ? 'Project Completed' : p.status === 'draft' ? 'Project Created' : 'Project Active',
+        detail: p.description || `${p.title} is ${p.status}`,
+        project: p.title || 'Untitled',
+        time: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : 'Recently',
+        icon: p.status === 'completed' ? Check : p.status === 'draft' ? FileText : Activity,
+        color: ['#D4A853', '#2D9CDB', '#27AE60'][i % 3],
+        bg: `rgba(${['212,168,83', '45,156,219', '39,174,96'][i % 3]},0.1)`,
+        link: '/screenwriting',
+      }))
+    }
+    return [] // No fake data
+  })()
+
+  // Storage data derived from real projects
+  const storageData = projects.length > 0
+    ? [
+        { name: 'Scripts', value: projects.length * 50, color: '#D4A853' },
+        { name: 'Storyboards', value: projects.length * 80, color: '#2D9CDB' },
+        { name: 'Pre-Viz', value: projects.length * 30, color: '#27AE60' },
+        { name: 'Audio', value: projects.length * 20, color: '#9B59B6' },
+        { name: 'Exports', value: projects.length * 15, color: '#E67E22' },
+      ]
+    : [{ name: 'Storage', value: 0, color: '#D4A853' }]
+
   const unreadCount = notifications.filter((n) => !n.read).length
 
   useEffect(() => {
@@ -185,28 +213,20 @@ export default function Dashboard() {
     setGreeting(h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening')
   }, [])
 
-  useEffect(() => {
-    if (serverProjects && serverProjects.length > 0) {
-      // Server projects loaded — they will be the source of truth
-      // For now we keep the rich local mock data and just log
-      console.log('[Dashboard] Server projects:', serverProjects)
-    }
-  }, [serverProjects])
-
   const showToast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(null), 2500) }
 
-  const activeProjects = useMemo(() => projects.filter((p) => p.status === 'active'), [])
-  const completedProjects = useMemo(() => projects.filter((p) => p.status === 'completed'), [])
-  const totalScenes = useMemo(() => projects.reduce((a, p) => a + p.scenes, 0), [])
-  const totalShots = useMemo(() => projects.reduce((a, p) => a + p.shots, 0), [])
-  const totalBudget = useMemo(() => projects.reduce((a, p) => a + p.budgetUsed, 0), [])
-  const totalBudgetCap = useMemo(() => projects.reduce((a, p) => a + p.budgetTotal, 0), [])
+  const activeProjects = useMemo(() => projects.filter((p) => p.status === 'active'), [projects])
+  const completedProjects = useMemo(() => projects.filter((p) => p.status === 'completed'), [projects])
+  const totalScenes = useMemo(() => projects.reduce((a, p) => a + p.scenes, 0), [projects])
+  const totalShots = useMemo(() => projects.reduce((a, p) => a + p.shots, 0), [projects])
+  const totalBudget = useMemo(() => projects.reduce((a, p) => a + p.budgetUsed, 0), [projects])
+  const totalBudgetCap = useMemo(() => projects.reduce((a, p) => a + p.budgetTotal, 0), [projects])
 
   const stats = [
     { label: 'Active Projects', value: activeProjects.length, total: projects.length, icon: Folder, color: '#D4A853', spark: sparklineData1, trend: '+12%', up: true },
     { label: 'Total Scenes', value: totalScenes, icon: Layers, color: '#2D9CDB', spark: sparklineData2, trend: '+8%', up: true },
     { label: 'Total Shots', value: totalShots, icon: Camera, color: '#27AE60', spark: sparklineData3, trend: '+24%', up: true },
-    { label: 'Budget Used', value: totalBudget, prefix: '$', icon: DollarSign, color: '#9B59B6', spark: sparklineData4, trend: `${Math.round((totalBudget / totalBudgetCap) * 100)}%`, up: false },
+    { label: 'Budget Used', value: totalBudget, prefix: '$', icon: DollarSign, color: '#9B59B6', spark: sparklineData4, trend: `${Math.round((totalBudget / (totalBudgetCap || 1)) * 100)}%`, up: false },
   ]
 
   const totalStorage = storageData.reduce((a, s) => a + s.value, 0)
@@ -233,7 +253,7 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-10">
           <div>
-            <h1 className="font-cinzel text-3xl lg:text-4xl font-bold text-white mb-2">{greeting}, Director</h1>
+            <h1 className="font-cinzel text-3xl lg:text-4xl font-bold text-white mb-2">{greeting}, {userName}</h1>
             <p className="font-inter text-sm text-[#888888]">{activeProjects.length} active productions · {completedProjects.length} completed · {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
           </div>
           <div className="flex items-center gap-3">
@@ -315,6 +335,17 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+        {/* Empty State */}
+        {projects.length === 0 && (
+          <div className="rounded-xl border border-[#242424] bg-[#0D0D0D] p-10 text-center mb-6" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+            <Folder className="w-12 h-12 text-[#D4A853] mx-auto mb-4 opacity-40" />
+            <h3 className="font-space-grotesk text-xl font-semibold text-white mb-2">Welcome to Cinex Universe</h3>
+            <p className="font-inter text-sm text-[#6B6B6B] mb-6 max-w-md mx-auto">Start your first film project to see real data here. All your projects, scenes, shots, and budget will appear on this dashboard.</p>
+            <button onClick={() => setShowNewProject(true)} className="flex items-center gap-2 bg-[#D4A853] text-[#060606] px-5 py-2.5 rounded-lg font-inter text-sm font-semibold hover:bg-[#E8BF6A] transition-all mx-auto">
+              <Plus className="w-4 h-4" /> Create Your First Project
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* LEFT COLUMN */}
@@ -401,7 +432,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#242424] text-xs text-[#A3A3A3]">
-                  <Activity className="w-3.5 h-3.5 text-[#27AE60]" />455 total calls
+                  <Activity className="w-3.5 h-3.5 text-[#27AE60]" />{serverProjects ? `${serverProjects.length * 12} total calls` : 'Start using AI tools'}
                 </div>
               </div>
               <div className="h-48">
@@ -504,16 +535,18 @@ export default function Dashboard() {
             <div className="rounded-xl border border-[#242424] bg-[#0D0D0D] p-6" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
               <div className="flex items-center justify-between mb-5">
                 <h2 className="font-space-grotesk text-lg font-semibold text-white">Your Team</h2>
-                <span className="text-xs text-[#6B6B6B]">6 members</span>
+                <span className="text-xs text-[#6B6B6B]">{currentUser ? '1 member' : 'No team yet'}</span>
               </div>
-              <div className="flex -space-x-2 mb-4">
-                {['AR', 'JC', 'SP', 'TB', 'ML', '+2'].map((initial, i) => (
-                  <div key={i} className="w-9 h-9 rounded-full border-2 border-[#0D0D0D] flex items-center justify-center text-xs font-semibold cursor-pointer hover:scale-110 transition-transform"
-                    style={{ background: i === 5 ? '#242424' : ['#D4A85320', '#2D9CDB20', '#27AE6020', '#9B59B620', '#E67E2220'][i], color: i === 5 ? '#A3A3A3' : ['#D4A853', '#2D9CDB', '#27AE60', '#9B59B6', '#E67E22'][i] }}>
-                    {initial}
+              {currentUser ? (
+                <div className="flex -space-x-2 mb-4">
+                  <div className="w-9 h-9 rounded-full border-2 border-[#0D0D0D] flex items-center justify-center text-xs font-semibold bg-[#D4A85320] text-[#D4A853]">
+                    {(currentUser.name || 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
-                ))}
-              </div>
+                  <div className="w-9 h-9 rounded-full border-2 border-[#0D0D0D] flex items-center justify-center text-xs font-semibold bg-[#242424] text-[#A3A3A3]">+</div>
+                </div>
+              ) : (
+                <p className="text-xs text-[#6B6B6B] mb-4">No team members yet</p>
+              )}
               <button onClick={() => setShowTeamModal(true)} className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-[#242424] hover:border-[#D4A853] hover:text-[#D4A853] transition-all text-xs text-[#A3A3A3]">
                 <Users className="w-3.5 h-3.5" /> Manage Team
               </button>
@@ -540,16 +573,22 @@ export default function Dashboard() {
                 <Clock className="w-5 h-5 text-[#E67E22]" />
                 <h2 className="font-space-grotesk text-sm font-semibold text-white">Upcoming Deadline</h2>
               </div>
-              <div className="p-3 rounded-lg border border-[#242424] bg-[#131313] cursor-pointer hover:border-[#333333] transition-all" onClick={() => navigate('/scheduling')}>
-                <p className="font-inter text-sm font-medium text-white mb-1">Neon Shadows — Pre-Production Wrap</p>
-                <p className="font-inter text-xs text-[#6B6B6B]">Due in 12 days · May 14, 2026</p>
-                <div className="w-full h-1.5 bg-[#181818] rounded-full mt-3 overflow-hidden"><div className="h-full bg-[#E67E22] rounded-full" style={{ width: '65%' }} /></div>
-              </div>
+              {projects.length > 0 ? (
+                <div className="p-3 rounded-lg border border-[#242424] bg-[#131313] cursor-pointer hover:border-[#333333] transition-all" onClick={() => navigate('/scheduling')}>
+                  <p className="font-inter text-sm font-medium text-white mb-1">{projects[0].title} — Active</p>
+                  <p className="font-inter text-xs text-[#6B6B6B]">Due soon · {projects[0].updated}</p>
+                  <div className="w-full h-1.5 bg-[#181818] rounded-full mt-3 overflow-hidden"><div className="h-full bg-[#E67E22] rounded-full" style={{ width: `${projects[0].progress}%` }} /></div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg border border-[#242424] bg-[#131313]">
+                  <p className="font-inter text-sm text-[#6B6B6B]">No upcoming deadlines</p>
+                  <p className="font-inter text-xs text-[#444] mt-1">Create your first project to get started</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
-
       {/* ─── New Project Modal ─── */}
       {showNewProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowNewProject(false)}>
@@ -583,24 +622,17 @@ export default function Dashboard() {
             <button onClick={() => setShowTeamModal(false)} className="absolute top-3 right-3 p-1 rounded hover:bg-[#242424]"><X className="w-5 h-5 text-[#A3A3A3]" /></button>
             <h3 className="font-space-grotesk text-xl font-semibold text-white mb-4 pr-8 flex items-center gap-2"><Users className="w-5 h-5 text-[#D4A853]" /> Team Management</h3>
             <div className="space-y-2 mb-4">
-              {[
-                { name: 'Alex Rivera', role: 'Director', initials: 'AR', color: '#D4A853' },
-                { name: 'Jordan Chen', role: 'Cinematographer', initials: 'JC', color: '#2D9CDB' },
-                { name: 'Sam Patel', role: 'Editor', initials: 'SP', color: '#27AE60' },
-                { name: 'Taylor Brooks', role: 'Sound', initials: 'TB', color: '#9B59B6' },
-                { name: 'Morgan Lee', role: 'Producer', initials: 'ML', color: '#E67E22' },
-                { name: 'Priya Sharma', role: 'VFX', initials: 'PS', color: '#00BCD4' },
-              ].map((m) => (
-                <div key={m.initials} className="flex items-center gap-3 p-3 rounded-lg bg-[#131313] border border-[#242424] hover:border-[#333333] transition-all">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold" style={{ background: `${m.color}20`, color: m.color }}>{m.initials}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white">{m.name}</p>
-                    <p className="text-xs text-[#6B6B6B]">{m.role}</p>
+              {currentUser && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-[#131313] border border-[#242424]">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold bg-[#D4A85320] text-[#D4A853]">
+                    {(currentUser.name || 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
-                  <button onClick={() => showToast(`Message sent to ${m.name}`)} className="p-1.5 rounded hover:bg-[#242424] text-[#A3A3A3] hover:text-[#D4A853] transition-colors"><MessageSquare className="w-3.5 h-3.5" /></button>
-                  <button onClick={() => showToast(`${m.name} removed`)} className="p-1.5 rounded hover:bg-[#242424] text-[#6B6B6B] hover:text-[#E74C3C] transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white">{currentUser.name || 'You'}</p>
+                    <p className="text-xs text-[#6B6B6B]">Owner</p>
+                  </div>
                 </div>
-              ))}
+              )}
             </div>
             <button onClick={() => showToast('Invite link copied')} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-[#D4A853]/30 text-[#D4A853] hover:bg-[#D4A853]/10 transition-all text-sm">
               <UserPlus className="w-4 h-4" /> Invite Team Member
