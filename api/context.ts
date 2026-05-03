@@ -1,6 +1,5 @@
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import type { User } from "../db/schema.js";
-import { authenticateRequest } from "./kimi/auth.js";
 import { verifyLocalToken } from "./lib/local-jwt.js";
 import { getDb } from "./queries/connection.js";
 import { eq } from "drizzle-orm";
@@ -17,14 +16,7 @@ export async function createContext(
 ): Promise<TrpcContext> {
   const ctx: TrpcContext = { req: opts.req, resHeaders: opts.resHeaders };
 
-  // Try OAuth first
-  try {
-    ctx.user = await authenticateRequest(opts.req.headers);
-  } catch {
-    // OAuth failed, try local auth
-  }
-
-  // Try local JWT auth if no OAuth user
+  // Try local JWT auth
   if (!ctx.user) {
     try {
       const authHeader = opts.req.headers.get("authorization");
