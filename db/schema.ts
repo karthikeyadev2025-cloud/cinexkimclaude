@@ -41,6 +41,8 @@ export const users = pgTable(
     planSlug: varchar("plan_slug", { length: 50 }).default("free"),
     trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
     subscriptionStatus: varchar("subscription_status", { length: 50 }).default("trial"),
+    aiCreditsUsed: integer("ai_credits_used").default(0),
+    aiCreditsLimit: integer("ai_credits_limit").default(10),
     razorpayCustomerId: varchar("razorpay_customer_id", { length: 255 }),
     razorpaySubscriptionId: varchar("razorpay_subscription_id", { length: 255 }),
   },
