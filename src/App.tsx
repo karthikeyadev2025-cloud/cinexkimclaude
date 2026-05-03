@@ -59,7 +59,7 @@ export default function App() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/sys/login" element={<SysAdminLogin />} />
-      <Route path="/register" element={<Navigate to="/login" replace />} />
+      <Route path="/register" element={<Login defaultMode="register" />} />
       <Route path="/magic-link" element={<MagicLink />} />
       <Route path="/pricing" element={<Pricing />} />
 

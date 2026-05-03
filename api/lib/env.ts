@@ -18,4 +18,5 @@ export const env = {
   googleClientId: getEnv("GOOGLE_CLIENT_ID") || "",
   googleClientSecret: getEnv("GOOGLE_CLIENT_SECRET") || "",
   siteUrl: getEnv("SITE_URL") || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://cinexuniverse.com"),
+  appUrl: getEnv("APP_URL") || getEnv("SITE_URL") || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://cinexuniverse.com"),
 };

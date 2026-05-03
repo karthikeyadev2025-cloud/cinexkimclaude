@@ -7,7 +7,7 @@ import {
 import { useRoleStore } from '../stores/roleStore'
 import { trpcClient } from '../providers/trpc'
 
-export default function Login() {
+export default function Login({ defaultMode }: { defaultMode?: "signin" | "register" | "magic" } = {}) {
   const navigate = useNavigate()
   const roleStore = useRoleStore()
   const [email, setEmail] = useState('')
@@ -16,7 +16,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [magicSent, setMagicSent] = useState(false)
   const [error, setError] = useState('')
-  const [mode, setMode] = useState<'signin' | 'register' | 'magic'>('signin')
+  const [mode, setMode] = useState<'signin' | 'register' | 'magic'>(defaultMode || 'signin')
   const [name, setName] = useState('')
   const [registerRole, setRegisterRole] = useState<'user' | 'casting' | 'talent'>('user')
   const [particles, setParticles] = useState<{x: number; y: number; size: number; delay: number}[]>([])

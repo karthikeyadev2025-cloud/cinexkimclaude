@@ -17,6 +17,16 @@ import { useFeatureToggleStore } from '../stores/featureToggleStore'
 import { useCastingStore } from '../stores/castingStore'
 import { usePlanStore } from '../stores/planStore'
 import type { CastingDirector, TalentProfile } from '../stores/castingStore'
+import {
+  fetchAdminStats,
+  fetchAdminUsers,
+  fetchAdminFeatures,
+  fetchAdminPlans,
+  fetchAdminApiConfigs,
+  updateUserRoleOnServer,
+  toggleUserActiveOnServer,
+  updateFeatureOnServer,
+} from '../stores/adminSync'
 
 /* ─── Types ─── */
 interface User {
@@ -136,6 +146,29 @@ type TabKey = (typeof tabs)[number]['key']
 export default function Admin() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
+
+  /* ─── Server Data (tRPC) ─── */
+  const [serverStats, setServerStats] = useState<any>(null)
+  const [serverUsers, setServerUsers] = useState<any[]>([])
+  const [serverFeatures, setServerFeatures] = useState<any[]>([])
+  const [serverPlans, setServerPlans] = useState<any[]>([])
+  const [serverApiConfigs, setServerApiConfigs] = useState<any[]>([])
+  const [isServerMode, setIsServerMode] = useState(false)
+
+  const loadServerData = useCallback(async () => {
+    const stats = await fetchAdminStats()
+    if (stats.ok) { setServerStats(stats); setIsServerMode(true) }
+    const users = await fetchAdminUsers()
+    if (users.ok) setServerUsers(users.users)
+    const features = await fetchAdminFeatures()
+    if (features.ok) setServerFeatures(features.features)
+    const plans = await fetchAdminPlans()
+    if (plans.ok) setServerPlans(plans.plans)
+    const configs = await fetchAdminApiConfigs()
+    if (configs.ok) setServerApiConfigs(configs.configs)
+  }, [])
+
+  useEffect(() => { loadServerData() }, [loadServerData])
   const [users, setUsers] = useState<User[]>(MOCK_USERS)
   const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS)
 
@@ -201,7 +234,12 @@ export default function Admin() {
 
   /* Stats */
   const totalRevenue = transactions.filter((t) => t.status === 'completed').reduce((a, t) => a + t.amount, 0)
-  const stats = [
+  const stats = isServerMode && serverStats ? [
+    { label: 'Total Users', value: serverStats.users, change: '+12%', up: true, icon: Users, color: '#2D9CDB', spark: [{ v: 8 }, { v: 12 }, { v: 10 }, { v: 15 }, { v: 18 }, { v: 22 }, { v: 20 }] },
+    { label: 'Active Projects', value: serverStats.projects || 0, change: '+5%', up: true, icon: FolderOpen, color: '#27AE60', spark: [{ v: 4 }, { v: 6 }, { v: 5 }, { v: 8 }, { v: 10 }, { v: 9 }, { v: 12 }] },
+    { label: 'Revenue', value: totalRevenue, prefix: '$', change: '+18%', up: true, icon: DollarSign, color: '#D4A853', spark: [{ v: 20 }, { v: 22 }, { v: 25 }, { v: 24 }, { v: 28 }, { v: 30 }, { v: 32 }] },
+    { label: 'API Calls', value: 842, suffix: 'K', change: '+32%', up: true, icon: Cpu, color: '#9B59B6', spark: [{ v: 40 }, { v: 38 }, { v: 42 }, { v: 45 }, { v: 48 }, { v: 50 }, { v: 55 }] },
+  ] : [
     { label: 'Total Users', value: users.length, change: '+12%', up: true, icon: Users, color: '#2D9CDB', spark: [{ v: 8 }, { v: 12 }, { v: 10 }, { v: 15 }, { v: 18 }, { v: 22 }, { v: 20 }] },
     { label: 'Active Projects', value: MOCK_PROJECTS.filter((p) => p.status === 'active').length, change: '+5%', up: true, icon: FolderOpen, color: '#27AE60', spark: [{ v: 4 }, { v: 6 }, { v: 5 }, { v: 8 }, { v: 10 }, { v: 9 }, { v: 12 }] },
     { label: 'Revenue', value: totalRevenue, prefix: '$', change: '+18%', up: true, icon: DollarSign, color: '#D4A853', spark: [{ v: 20 }, { v: 22 }, { v: 25 }, { v: 24 }, { v: 28 }, { v: 30 }, { v: 32 }] },
@@ -265,7 +303,7 @@ export default function Admin() {
             </div>
           </div>
           <div className="flex items-center gap-2 w-full lg:w-auto">
-            <button onClick={() => { showToast('Dashboard refreshed'); setCurrentPage(1) }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#242424] hover:border-[#333333] hover:bg-[#131313] transition-all text-xs text-[#A3A3A3]">
+            <button onClick={() => { showToast('Dashboard refreshed'); setCurrentPage(1); loadServerData() }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#242424] hover:border-[#333333] hover:bg-[#131313] transition-all text-xs text-[#A3A3A3]">
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
             </button>
             <button onClick={() => showToast('Report exported')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#242424] hover:border-[#333333] hover:bg-[#131313] transition-all text-xs text-[#A3A3A3]">

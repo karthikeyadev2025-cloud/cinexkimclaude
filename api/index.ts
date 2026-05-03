@@ -97,7 +97,7 @@ app.get("/api/oauth/google/callback", async (c) => {
           <p>Sign-in successful. Redirecting to dashboard...</p>
           <script>
             localStorage.setItem('cinex_token', '${result.token}');
-            setTimeout(() => window.location.href = '/#/dashboard', 1000);
+            setTimeout(() => window.location.href = '/#/dashboard', 100);
           </script>
         </body>
       </html>

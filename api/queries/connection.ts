@@ -94,3 +94,18 @@ export function isDbAvailable() {
 export function getPool() {
   return pool;
 }
+
+
+/* ─── Pool cleanup for serverless (Vercel) ─── */
+export function cleanupPool() {
+  if (pool) {
+    pool.end().catch(() => {});
+    pool = null;
+    instance = null;
+    dbAvailable = false;
+  }
+}
+
+// Cleanup on process exit/signals (important for Vercel serverless)
+process.on('SIGTERM', cleanupPool);
+process.on('SIGINT', cleanupPool);
